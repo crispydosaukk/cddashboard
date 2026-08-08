@@ -290,7 +290,7 @@ export default function Restuarent() {
       console.error(e);
       showPopup({
         title: "Save Failed",
-        message: "Something went wrong while saving your profile.",
+        message: e.message ? `Something went wrong: ${e.message}` : "Something went wrong while saving your profile.",
         type: "error"
       });
     } finally {

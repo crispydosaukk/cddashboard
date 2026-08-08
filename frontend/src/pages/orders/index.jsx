@@ -383,12 +383,8 @@ export default function Orders() {
     filteredOrders.forEach((o, idx) => {
       const key = o.order_number || `ORDER_${idx}`;
       if (!map[key]) {
-        map[key] = {
-          ...o,
-          items: [],
-        };
+        map[key] = o;
       }
-      map[key].items.push(o);
     });
     return Object.values(map);
   }, [filteredOrders]);

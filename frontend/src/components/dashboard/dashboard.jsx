@@ -158,7 +158,7 @@ const MetricDetailsModal = ({ isOpen, onClose, title, items = [], type, onUpdate
                             <div className="w-10 h-10 rounded-xl bg-white/10 overflow-hidden shrink-0 border border-white/10">
                               {item.image ? (
                                 <img
-                                  src={`${(import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '')}/uploads/${item.image.replace(/^uploads\//, '')}`}
+                                  src={item.image || ""}
                                   alt=""
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                 />
@@ -428,7 +428,7 @@ const OrderDetailsModal = ({ order, onClose, onUpdateStatus, onReadyClick }) => 
                           <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center text-xs overflow-hidden">
                             {item.product_image ? (
                               <img
-                                src={`${(import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '')}/uploads/${item.product_image}`}
+                                src={item.product_image || ""}
                                 alt=""
                                 className="w-full h-full object-cover"
                               />
@@ -513,7 +513,7 @@ const ProductDetailsModal = ({ product, onClose }) => {
   const getImageUrl = (image) => {
     if (!image) return null;
     const cleanImage = image.replace(/^uploads\//, '');
-    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '');
+    const baseUrl = "";
     return `${baseUrl}/uploads/${cleanImage}`;
   };
 
@@ -1200,12 +1200,9 @@ export default function Dashboard() {
       for (const o of rawOrders) {
          if (!grouped[o.order_number]) {
            grouped[o.order_number] = {
-             order_number: o.order_number,
-             customer_id: o.customer_id,
+             ...o,
              grand_total: 0,
-             order_status: o.order_status,
-             created_at: o.created_at?.toDate ? o.created_at.toDate().toISOString() : o.created_at,
-             payment_mode: o.payment_mode
+             created_at: o.created_at?.toDate ? o.created_at.toDate().toISOString() : o.created_at
            };
          }
          grouped[o.order_number].grand_total += Number(o.grand_total || 0);
@@ -1316,13 +1313,9 @@ export default function Dashboard() {
         for (const o of rawOrders) {
            if (!grouped[o.order_number]) {
              grouped[o.order_number] = {
-               order_number: o.order_number,
-               customer_id: o.customer_id,
+               ...o,
                grand_total: 0,
-               order_status: o.order_status,
-               created_at: o.created_at?.toDate ? o.created_at.toDate().toISOString() : o.created_at,
-               order_source: o.order_source,
-               payment_mode: o.payment_mode
+               created_at: o.created_at?.toDate ? o.created_at.toDate().toISOString() : o.created_at
              };
            }
            // Avoid duplicating grand_total if it was calculated per item properly
@@ -1847,7 +1840,7 @@ export default function Dashboard() {
                           <div className="w-12 h-12 rounded-lg bg-white/10 overflow-hidden ring-1 ring-white/10">
                             {product.image ? (
                               <img
-                                src={`${(import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/api\/?$/, '')}/uploads/${product.image.replace(/^uploads\//, '')}`}
+                                src={product.image || ""}
                                 alt=""
                                 className="w-full h-full object-cover"
                               />

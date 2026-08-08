@@ -16,8 +16,13 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 export default function Category() {
   const { showPopup } = usePopup();
   const API = import.meta.env.VITE_API_URL;
-  const API_BASE = API ? API.replace(/\/api\/?$/i, "") : "";
   const token = localStorage.getItem("token");
+  
+  const getImageUrl = (img) => {
+    if (!img) return null;
+    if (img.startsWith("http")) return img;
+    return `${API}/uploads/${img}`;
+  };
   
   const userObj = JSON.parse(localStorage.getItem("user") || "{}");
   const localUserId = Number(userObj.id);
@@ -54,7 +59,7 @@ export default function Category() {
       try {
         let q = collection(db, "categories");
         if (!isSuperAdmin && localUserId && !isNaN(localUserId)) {
-          q = query(q, where("user_id", "==", localUserId));
+          q = query(q, where("user_id", "in", [localUserId, String(localUserId)]));
         }
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -66,8 +71,8 @@ export default function Category() {
           image: d.category_image || d.image
         }));
         
-        // Exclude soft-deleted or archived items (assuming status 1 = active, 0 = inactive)
-        const activeData = mappedData.filter(d => d.status === 1 || d.status === 0);
+        // Exclude soft-deleted or archived items
+        const activeData = mappedData.filter(d => d.status === undefined || d.status === 1 || d.status === 0);
         
         setCategories(activeData.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)));
       } catch (err) {
@@ -402,7 +407,7 @@ export default function Category() {
   // MOBILE CATEGORY CARD
   // =============================
   const CategoryCard = ({ item }) => {
-    const imgUrl = item.image ? (item.image.startsWith('http') ? item.image : `${API_BASE}/uploads/${item.image.replace(/^uploads\//, '')}`) : null;
+    const imgUrl = getImageUrl(item.image);
 
     return (
       <div
@@ -633,7 +638,7 @@ export default function Category() {
                                         <div className="h-14 w-14 rounded-lg overflow-hidden bg-white/10 border border-white/10 shadow-md flex-shrink-0">
                                           {item.image ? (
                                             <img
-                                              src={item.image.startsWith('http') ? item.image : `${API_BASE}/uploads/${item.image.replace(/^uploads\//, '')}`}
+                                              src={getImageUrl(item.image) || ""}
                                               className="h-full w-full object-cover"
                                               alt={item.name}
                                             />
@@ -927,7 +932,7 @@ export default function Category() {
                     <div className="h-12 w-12 bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-white/10">
                       {game.image ? (
                         <img
-                          src={`${API_BASE}/uploads/${game.image}`}
+                          src={game.image || ""}
                           className="h-full w-full object-cover"
                           alt=""
                         />

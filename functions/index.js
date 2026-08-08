@@ -197,20 +197,34 @@ exports.onOrderStatusUpdated = functions.firestore.document("orders/{orderId}").
   if (custDoc2.exists) {
     const fcmToken = custDoc2.data().fcm_token;
     if (fcmToken) {
-      const payload = {
+      const message = {
+        token: fcmToken,
         notification: {
           title: title,
           body: body,
-          sound: "default"
         },
         data: {
           order_id: change.after.id,
           order_number: after.order_number,
           status: String(newStatus)
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: "default",
+              contentAvailable: true
+            }
+          }
+        },
+        android: {
+          priority: "high",
+          notification: {
+            sound: "default"
+          }
         }
       };
       try {
-        await admin.messaging().sendToDevice(fcmToken, payload);
+        await admin.messaging().send(message);
         console.log(`Push notification sent to ${customerId} for order #${after.order_number}`);
       } catch (err) {
         console.error("Failed to send push notification:", err);

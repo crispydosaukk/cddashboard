@@ -11,6 +11,7 @@ import Product from "./pages/product/index.jsx";
 import CustomerInfo from "./pages/customerinfo/index.jsx";
 import Orders from "./pages/orders/index.jsx";
 import Settings from "./pages/settings/index.jsx";
+import Migration from "./pages/migration/index.jsx"; // ← NEW
 import CustomerDetails from "./pages/customerdetails/index.jsx";
 import PrivacyPolicy from "./pages/privacy-policy/index.jsx";
 import DeleteAccount from "./pages/delete-account/index.jsx";
@@ -142,6 +143,14 @@ export default function App() {
                 <RequirePerm perm="settings">
                   <Settings />
                 </RequirePerm>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/migration"
+            element={
+              <PrivateRoute>
+                <Migration />
               </PrivateRoute>
             }
           />

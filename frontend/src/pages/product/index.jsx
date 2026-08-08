@@ -20,6 +20,12 @@ export default function ProductPage() {
   const API = import.meta.env.VITE_API_URL;
   const token = localStorage.getItem("token");
   
+  const getImageUrl = (img) => {
+    if (!img) return null;
+    if (img.startsWith("http")) return img;
+    return `${API}/uploads/${img}`;
+  };
+  
   const userObj = JSON.parse(localStorage.getItem("user") || "{}");
   const localUserId = Number(userObj.id);
   const isSuperAdmin = Number(userObj.role_id) === 1;
@@ -75,8 +81,8 @@ export default function ProductPage() {
         let catQuery = collection(db, "categories");
         let prodQuery = collection(db, "products");
         if (!isSuperAdmin && localUserId && !isNaN(localUserId)) {
-          catQuery = query(catQuery, where("user_id", "==", localUserId));
-          prodQuery = query(prodQuery, where("user_id", "==", localUserId));
+          catQuery = query(catQuery, where("user_id", "in", [localUserId, String(localUserId)]));
+          prodQuery = query(prodQuery, where("user_id", "in", [localUserId, String(localUserId)]));
         }
 
         const catSnap = await getDocs(catQuery);
@@ -99,8 +105,8 @@ export default function ProductPage() {
           };
         });
         
-        // Exclude soft-deleted or archived items (assuming status 1 = active, 0 = inactive)
-        const activeData = safeData.filter(d => d.status === 1 || d.status === 0);
+        // Exclude soft-deleted or archived items
+        const activeData = safeData.filter(d => d.status === undefined || d.status === 1 || d.status === 0);
 
         setProducts(activeData.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)));
       } catch (err) {
@@ -251,19 +257,16 @@ export default function ProductPage() {
   const formatGBP = (value) =>
     new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(value || 0);
 
-  // compute API base (strip trailing /api if present) for uploads
-  const API_BASE = API ? API.replace(/\/api\/?$/i, "") : "";
-
   // small helper to show image preview from File or existing path
   const imagePreviewUrl = useMemo(() => {
     if (form.image instanceof File) {
       return URL.createObjectURL(form.image);
     }
     if (form.oldImage) {
-      return `${API_BASE}/uploads/${form.oldImage}`;
+      return form.oldImage.startsWith("http") ? form.oldImage : `${API}/uploads/${form.oldImage}`;
     }
     return null;
-  }, [form.image, form.oldImage, API_BASE]);
+  }, [form.image, form.oldImage, API]);
 
   // revoke objectURL when image file changes or component unmounts
   useEffect(() => {
@@ -503,7 +506,7 @@ export default function ProductPage() {
   const ProductCard = ({ p }) => {
     let imgUrl = null;
     if (p.image) {
-       imgUrl = p.image.startsWith('http') ? p.image : `${API_BASE}/uploads/${p.image.replace(/^uploads\//, '')}`;
+       imgUrl = getImageUrl(p.image);
     }
     return (
       <div
@@ -783,7 +786,7 @@ export default function ProductPage() {
                                         <td className="px-6 py-4 w-24">
                                           <div className="h-12 w-12 rounded-lg bg-white/10 border border-white/10 overflow-hidden flex-shrink-0">
                                             <img
-                                              src={p.image ? (p.image.startsWith('http') ? p.image : `${API_BASE}/uploads/${p.image.replace(/^uploads\//, '')}`) : ""}
+                                              src={getImageUrl(p.image) || ""}
                                               className="h-full w-full object-cover"
                                               alt={p.name}
                                               onError={(e) => (e.target.style.display = "none")}
@@ -1338,7 +1341,7 @@ export default function ProductPage() {
                     <div className="h-14 w-14 bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-white/10">
                       {item.image ? (
                         <img
-                          src={`${API_BASE}/uploads/${item.image}`}
+                          src={item.image || ""}
                           className="h-full w-full object-cover"
                           alt=""
                         />
