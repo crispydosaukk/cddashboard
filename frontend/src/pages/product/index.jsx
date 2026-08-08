@@ -137,16 +137,42 @@ export default function ProductPage() {
       setGlobalSearchResults([]);
       return;
     }
-    const t = setTimeout(() => {
-      fetch(`${API}/products/search-global?q=${encodeURIComponent(globalSearchQuery)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => setGlobalSearchResults(Array.isArray(data) ? data : []))
-        .catch(err => console.error(err));
+    const t = setTimeout(async () => {
+      try {
+        // Fetch all categories to get category names
+        const catSnap = await getDocs(collection(db, "categories"));
+        const allCats = catSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Fetch all products
+        const snap = await getDocs(collection(db, "products"));
+        const allProds = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const q = globalSearchQuery.toLowerCase();
+        
+        const filtered = allProds.filter(p => 
+          (p.name || "").toLowerCase().includes(q)
+        );
+
+        // Remove duplicates by name
+        const uniqueFiltered = [];
+        const seenNames = new Set();
+        for (const p of filtered) {
+          const lowerName = (p.name || "").toLowerCase();
+          if (!seenNames.has(lowerName)) {
+            seenNames.add(lowerName);
+            // Attach category name for display
+            const cat = allCats.find(c => c.id === String(p.cat_id));
+            uniqueFiltered.push({ ...p, category_name: cat ? cat.name : "No Category" });
+          }
+        }
+
+        setGlobalSearchResults(uniqueFiltered.slice(0, 50));
+      } catch (err) {
+        console.error("Global search error:", err);
+        setGlobalSearchResults([]);
+      }
     }, 300);
     return () => clearTimeout(t);
-  }, [globalSearchQuery, showSearchModal, API, token]);
+  }, [globalSearchQuery, showSearchModal]);
 
   // =============================
   // ADD GLOBAL PRODUCT
@@ -167,21 +193,17 @@ export default function ProductPage() {
               targetCatId = match.id;
             } else {
               // Create Category
-              const catFd = new FormData();
-              catFd.append("name", item.category_name);
-              if (item.category_image) catFd.append("existingImage", item.category_image);
-
-              const catRes = await fetch(`${API}/category`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-                body: catFd
-              });
-
-              if (catRes.ok) {
-                const newCat = await catRes.json();
-                setCategories(prev => [...prev, newCat].sort((a, b) => a.sort_order - b.sort_order));
-                targetCatId = newCat.id;
-              }
+              const newCatPayload = {
+                name: item.category_name,
+                category_image: item.category_image || "",
+                status: 1,
+                sort_order: categories.length + 1,
+                user_id: localUserId || 1
+              };
+              const catDocRef = await addDoc(collection(db, "categories"), newCatPayload);
+              const newCat = { id: catDocRef.id, ...newCatPayload };
+              setCategories(prev => [...prev, newCat].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)));
+              targetCatId = newCat.id;
             }
           }
 
@@ -198,40 +220,40 @@ export default function ProductPage() {
           }
 
           // 2. Create Product
-          const fd = new FormData();
-          fd.append("name", item.name);
-          fd.append("description", item.description || "");
-          fd.append("price", item.price || 0);
-          fd.append("discountPrice", item.discountPrice || "");
-          fd.append("cat_id", targetCatId);
-          fd.append("contains", JSON.stringify(item.contains || []));
-          if (item.image) fd.append("existingImage", item.image);
-
-          const res = await fetch(`${API}/products`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: fd
-          });
-
-          if (!res.ok) {
-            const err = await res.json();
+          const productExists = products.some(p => p.name?.trim().toLowerCase() === item.name?.trim().toLowerCase());
+          if (productExists) {
             showPopup({
               title: "Import Failed",
-              message: res.status === 409 ? "Product already exists in your menu." : (err.message || "Failed to add product"),
-              type: "error"
+              message: "Product already exists in your menu.",
+              type: "warning"
             });
             return;
           }
 
-          const saved = await res.json();
-          let savedContains = saved.contains;
+          let containsData = item.contains;
           try {
-            if (typeof savedContains === 'string') savedContains = JSON.parse(savedContains);
-            if (typeof savedContains === 'string') savedContains = JSON.parse(savedContains);
+            if (typeof containsData === 'string') containsData = JSON.parse(containsData);
+            if (typeof containsData === 'string') containsData = JSON.parse(containsData);
           } catch (e) { }
-          saved.contains = Array.isArray(savedContains) ? savedContains : [];
+          containsData = Array.isArray(containsData) ? containsData : [];
 
-          setProducts(prev => [saved, ...prev].sort((a, b) => a.sort_order - b.sort_order));
+          const newProductPayload = {
+            name: item.name,
+            description: item.description || "",
+            price: parseFloat(item.price || 0),
+            discountPrice: item.discountPrice || "",
+            cat_id: targetCatId,
+            contains: containsData,
+            image: item.image || "",
+            status: 1,
+            sort_order: products.length + 1,
+            user_id: localUserId || 1
+          };
+
+          const docRef = await addDoc(collection(db, "products"), newProductPayload);
+          const saved = { id: docRef.id, ...newProductPayload };
+
+          setProducts(prev => [saved, ...prev].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)));
 
           setShowSearchModal(false);
           setGlobalSearchQuery("");
@@ -1339,9 +1361,9 @@ export default function ProductPage() {
                     className="w-full flex items-center gap-4 p-3 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl transition-all text-left group"
                   >
                     <div className="h-14 w-14 bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-white/10">
-                      {item.image ? (
+                      {item.image || item.product_image ? (
                         <img
-                          src={item.image || ""}
+                          src={getImageUrl(item.image || item.product_image) || ""}
                           className="h-full w-full object-cover"
                           alt=""
                         />
@@ -1350,7 +1372,7 @@ export default function ProductPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-white truncate group-hover:text-blue-300 transition">{item.name}</div>
+                      <div className="font-semibold text-white truncate group-hover:text-blue-300 transition">{item.name || item.product_name}</div>
                       <div className="text-xs text-white/40 mb-1">{item.category_name || "No Category"}</div>
                       <div className="text-sm font-medium text-emerald-400">{formatGBP(item.price)}</div>
                     </div>

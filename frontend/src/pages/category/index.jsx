@@ -101,35 +101,97 @@ export default function Category() {
       setGlobalSearchResults([]);
       return;
     }
-    const t = setTimeout(() => {
-      fetch(`${API}/category/search-global?q=${encodeURIComponent(globalSearchQuery)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.json())
-        .then((data) => setGlobalSearchResults(Array.isArray(data) ? data : []))
-        .catch(err => console.error(err));
+    const t = setTimeout(async () => {
+      try {
+        const snap = await getDocs(collection(db, "categories"));
+        const allCats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const q = globalSearchQuery.toLowerCase();
+        
+        const filtered = allCats.filter(c => 
+          (c.name || c.category_name || "").toLowerCase().includes(q)
+        );
+
+        // Remove duplicates by name
+        const uniqueFiltered = [];
+        const seenNames = new Set();
+        for (const c of filtered) {
+          const lowerName = (c.name || c.category_name || "").toLowerCase();
+          if (!seenNames.has(lowerName)) {
+            seenNames.add(lowerName);
+            uniqueFiltered.push({ ...c, name: c.name || c.category_name || "Unknown Category" });
+          }
+        }
+        
+        setGlobalSearchResults(uniqueFiltered.slice(0, 50));
+      } catch (err) {
+        console.error("Global search error:", err);
+        setGlobalSearchResults([]);
+      }
     }, 300);
     return () => clearTimeout(t);
-  }, [globalSearchQuery, showSearchModal, API, token]);
+  }, [globalSearchQuery, showSearchModal]);
 
   // =============================
   // IMPORT PRODUCTS HELPER
   // =============================
   const handleImportProducts = async (categoryName, targetCategoryId) => {
     try {
-      const res = await fetch(`${API}/products/import-global`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ categoryName, targetCategoryId }),
+      // 1. Find global category ID for this category name
+      const catSnap = await getDocs(collection(db, "categories"));
+      const globalCat = catSnap.docs.find(d => {
+        const data = d.data();
+        return (data.name || data.category_name || "").toLowerCase() === categoryName.toLowerCase();
       });
-      const data = await res.json();
-      if (data.count > 0) {
+
+      if (!globalCat) {
+         showPopup({ title: "Import Info", message: `No global products found for "${categoryName}".`, type: "info" });
+         return;
+      }
+
+      // 2. Get global products matching this category ID
+      const prodQuery = query(collection(db, "products"), where("cat_id", "==", globalCat.id));
+      const globalProdsSnap = await getDocs(prodQuery);
+      const globalProds = globalProdsSnap.docs.map(d => d.data());
+
+      if (globalProds.length === 0) {
+        showPopup({ title: "Import Info", message: `No new products found for "${categoryName}" to import.`, type: "info" });
+        return;
+      }
+
+      // 3. Get local products to avoid duplicates
+      let localProdsQuery = collection(db, "products");
+      if (!isSuperAdmin && localUserId && !isNaN(localUserId)) {
+        localProdsQuery = query(localProdsQuery, where("user_id", "in", [localUserId, String(localUserId)]));
+      }
+      const localProdsSnap = await getDocs(localProdsQuery);
+      const localProductNames = localProdsSnap.docs.map(d => (d.data().name || d.data().product_name || "").toLowerCase());
+
+      let importedCount = 0;
+      for (const p of globalProds) {
+        const pName = (p.name || p.product_name || "").toLowerCase();
+        if (!localProductNames.includes(pName)) {
+          // Import it
+          const newProductPayload = {
+            name: p.name || p.product_name || "Unknown Product",
+            description: p.description || "",
+            price: parseFloat(p.price || 0),
+            discountPrice: p.discountPrice || "",
+            cat_id: targetCategoryId, // Assign to the newly created local category
+            contains: p.contains || [],
+            image: p.image || p.product_image || "",
+            status: 1,
+            sort_order: localProductNames.length + importedCount + 1,
+            user_id: localUserId || 1
+          };
+          await addDoc(collection(db, "products"), newProductPayload);
+          importedCount++;
+        }
+      }
+
+      if (importedCount > 0) {
         showPopup({
           title: "Import Success",
-          message: `Successfully imported ${data.count} products for "${categoryName}".`,
+          message: `Successfully imported ${importedCount} products for "${categoryName}".`,
           type: "success"
         });
       } else {
@@ -151,7 +213,7 @@ export default function Category() {
   const handleAddGlobalCategory = async (cat) => {
     // Check if it already exists in the user's list
     const existingCat = categories.find(
-      (c) => c.name.trim().toLowerCase() === cat.name.trim().toLowerCase()
+      (c) => (c.name || "").trim().toLowerCase() === (cat.name || "").trim().toLowerCase()
     );
 
     if (existingCat) {
@@ -173,26 +235,20 @@ export default function Category() {
       message: `Add "${cat.name}" and its products to your list?`,
       type: "confirm",
       onConfirm: async () => {
-        const fd = new FormData();
-        fd.append("name", cat.name.trim());
-        if (cat.image) fd.append("existingImage", cat.image);
-
         try {
-          const res = await fetch(`${API}/category`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: fd,
-          });
+          const newCatPayload = {
+            name: (cat.name || "").trim(),
+            category_image: cat.category_image || cat.image || "",
+            status: 1,
+            sort_order: categories.length + 1,
+            user_id: localUserId || 1
+          };
+          
+          const docRef = await addDoc(collection(db, "categories"), newCatPayload);
+          const newData = { id: docRef.id, ...newCatPayload };
 
-          if (!res.ok) {
-            const err = await res.json();
-            showPopup({ title: "Failed", message: err.message || "Failed to add", type: "error" });
-            return;
-          }
-
-          const newData = await res.json();
           setCategories((prev) =>
-            [...prev, newData].sort((a, b) => a.sort_order - b.sort_order)
+            [...prev, newData].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
           );
           setShowSearchModal(false);
           setGlobalSearchQuery("");
@@ -930,9 +986,9 @@ export default function Category() {
                     className="w-full flex items-center gap-4 p-3 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl transition-all text-left group"
                   >
                     <div className="h-12 w-12 bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-white/10">
-                      {game.image ? (
+                      {game.image || game.category_image ? (
                         <img
-                          src={game.image || ""}
+                          src={getImageUrl(game.image || game.category_image) || ""}
                           className="h-full w-full object-cover"
                           alt=""
                         />
@@ -941,7 +997,7 @@ export default function Category() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <div className="font-semibold text-white group-hover:text-blue-300 transition">{game.name}</div>
+                      <div className="font-semibold text-white group-hover:text-blue-300 transition">{game.name || game.category_name}</div>
                       <div className="text-xs text-white/40">Click to add</div>
                     </div>
                     <div className="text-blue-300 opacity-0 group-hover:opacity-100 transition">
