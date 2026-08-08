@@ -49,10 +49,22 @@ const CustomerDetails = () => {
         }
     };
 
+    const getDisplayName = (customer) => {
+        if (customer.full_name && customer.full_name.trim()) return customer.full_name;
+        if (customer.name && customer.name.trim()) return customer.name; // Fallback for old schema
+        if (customer.email && customer.email.trim()) {
+            return customer.email.split("@")[0];
+        }
+        if (customer.mobile_number && customer.mobile_number.trim()) {
+            return `User ${customer.mobile_number.slice(-4)}`;
+        }
+        return "Unknown Customer";
+    };
+
     const getInitials = (name) => {
-        if (!name) return "?";
+        if (!name || name === "Unknown Customer") return "?";
         const parts = name.split(" ");
-        if (parts.length >= 2) {
+        if (parts.length >= 2 && parts[0] && parts[1]) {
             return (parts[0][0] + parts[1][0]).toUpperCase();
         }
         return name.substring(0, 2).toUpperCase();
@@ -174,7 +186,6 @@ const CustomerDetails = () => {
                                 <table className="min-w-full divide-y divide-white/10">
                                     <thead className="bg-white/5 backdrop-blur-md">
                                         <tr>
-                                            <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">#</th>
                                             <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">Customer</th>
                                             <th className="px-6 py-4 text-left text-xs font-bold text-white/80 uppercase tracking-wider">Contact</th>
                                             <th className="px-6 py-4 text-center text-xs font-bold text-white/80 uppercase tracking-wider">Live Orders</th>
@@ -185,7 +196,7 @@ const CustomerDetails = () => {
                                     <tbody className="divide-y divide-white/5">
                                         {loading ? (
                                             <tr>
-                                                <td colSpan="6" className="px-6 py-12 text-center">
+                                                <td colSpan="5" className="px-6 py-12 text-center">
                                                     <div className="flex flex-col items-center justify-center text-white">
                                                         <Loader2 className="animate-spin text-4xl mb-3" />
                                                         <span className="text-white/80 font-medium text-base">Loading customers...</span>
@@ -194,7 +205,7 @@ const CustomerDetails = () => {
                                             </tr>
                                         ) : customers.length === 0 ? (
                                             <tr>
-                                                <td colSpan="6" className="px-6 py-12 text-center">
+                                                <td colSpan="5" className="px-6 py-12 text-center">
                                                     <Users size={48} className="mx-auto text-white/30 mb-3" />
                                                     <p className="text-white/70 font-medium text-base">No customers found</p>
                                                     <p className="text-sm text-white/50 mt-1">Customers will appear here once they place orders</p>
@@ -209,17 +220,13 @@ const CustomerDetails = () => {
                                                     transition={{ delay: idx * 0.02 }}
                                                     className="hover:bg-white/5 transition-colors duration-200"
                                                 >
-                                                    <td className="px-6 py-4 text-base text-white/90 font-medium">
-                                                        #{customer.id}
-                                                    </td>
-
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-base shadow-lg">
-                                                                {getInitials(customer.full_name)}
+                                                                {getInitials(getDisplayName(customer))}
                                                             </div>
                                                             <div>
-                                                                <p className="text-base font-semibold text-white">{customer.full_name || "-"}</p>
+                                                                <p className="text-base font-semibold text-white">{getDisplayName(customer)}</p>
                                                             </div>
                                                         </div>
                                                     </td>
@@ -356,11 +363,11 @@ const CustomerDetails = () => {
                             <div className="p-6">
                                 {/* Customer Header */}
                                 <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/10">
-                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
-                                        {getInitials(selectedCustomer.full_name)}
+                                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-3xl shadow-xl border-4 border-white/10">
+                                        {getInitials(getDisplayName(selectedCustomer))}
                                     </div>
-                                    <div>
-                                        <h4 className="text-2xl font-bold text-white drop-shadow-lg">{selectedCustomer.full_name}</h4>
+                                    <div className="mt-4 text-center">
+                                        <h4 className="text-2xl font-bold text-white drop-shadow-lg">{getDisplayName(selectedCustomer)}</h4>
                                         <p className="text-base text-white/70">Customer ID: #{selectedCustomer.id}</p>
                                     </div>
                                 </div>

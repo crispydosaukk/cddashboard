@@ -37,12 +37,25 @@ export default function CustomerInfo() {
     fetchCustomers();
   }, []);
 
+  const getDisplayName = (customer) => {
+    if (customer.full_name && customer.full_name.trim()) return customer.full_name;
+    if (customer.name && customer.name.trim()) return customer.name; // Fallback for old schema
+    if (customer.email && customer.email.trim()) {
+      return customer.email.split("@")[0];
+    }
+    if (customer.mobile_number && customer.mobile_number.trim()) {
+      return `User ${customer.mobile_number.slice(-4)}`;
+    }
+    return "Unknown Customer";
+  };
+
   const filteredCustomers = customers.filter((c) => {
     const q = search.toLowerCase();
+    const displayName = getDisplayName(c).toLowerCase();
     return (
-      c.full_name.toLowerCase().includes(q) ||
-      c.mobile_number.includes(search) ||
-      c.email?.toLowerCase().includes(q)
+      displayName.includes(q) ||
+      (c.mobile_number && c.mobile_number.includes(search)) ||
+      (c.email && c.email.toLowerCase().includes(q))
     );
   });
 
@@ -67,9 +80,9 @@ export default function CustomerInfo() {
   };
 
   const getInitials = (name) => {
-    if (!name) return "?";
+    if (!name || name === "Unknown Customer") return "?";
     const parts = name.split(" ");
-    if (parts.length >= 2) {
+    if (parts.length >= 2 && parts[0] && parts[1]) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
     return name.substring(0, 2).toUpperCase();
@@ -210,10 +223,10 @@ export default function CustomerInfo() {
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-base shadow-lg">
-                                {getInitials(c.full_name)}
+                                {getInitials(getDisplayName(c))}
                               </div>
                               <div>
-                                <p className="text-base font-semibold text-white">{c.full_name}</p>
+                                <p className="text-base font-semibold text-white">{getDisplayName(c)}</p>
                                 <p className="text-sm text-white/60">{c.email || "—"}</p>
                               </div>
                             </div>
@@ -301,11 +314,11 @@ export default function CustomerInfo() {
               <div className="p-6">
                 {/* Customer Header */}
                 <div className="flex items-center gap-4 mb-6 pb-6 border-b border-white/10">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
-                    {getInitials(selectedCustomer.full_name)}
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-3xl shadow-xl border-4 border-white/10 mx-auto">
+                    {getInitials(getDisplayName(selectedCustomer))}
                   </div>
-                  <div>
-                    <h4 className="text-2xl font-bold text-white drop-shadow-lg">{selectedCustomer.full_name}</h4>
+                  <div className="mt-4 text-center">
+                    <h4 className="text-2xl font-bold text-white drop-shadow-lg">{getDisplayName(selectedCustomer)}</h4>
                     <p className="text-base text-white/70">Customer ID: #{selectedCustomer.id}</p>
                   </div>
                 </div>
