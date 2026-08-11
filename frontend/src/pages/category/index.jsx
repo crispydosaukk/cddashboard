@@ -6,7 +6,7 @@ import Header from "../../components/common/header.jsx";
 import Sidebar from "../../components/common/sidebar.jsx";
 import Footer from "../../components/common/footer.jsx";
 import { motion, AnimatePresence } from "framer-motion";
-import { Pencil, Trash2, GripVertical, Search, Plus, X, Upload, Save, Check } from "lucide-react";
+import { Pencil, Trash2, GripVertical, Search, Plus, X, Upload, Save, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { usePopup } from "../../context/PopupContext";
 import { db, storage } from "../../firebase";
@@ -45,6 +45,10 @@ export default function Category() {
   // Search
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
 
   // GLOBAL SEARCH STATE
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -285,6 +289,17 @@ export default function Category() {
     });
   }, [categories, debouncedQuery]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedQuery]);
+
+  const totalPages = Math.ceil(filteredCategories.length / itemsPerPage);
+  
+  const paginatedCategories = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredCategories.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredCategories, currentPage, itemsPerPage]);
+
   // =============================
   // IMAGE PREVIEW
   // =============================
@@ -446,9 +461,19 @@ export default function Category() {
   const onDragEnd = (result) => {
     if (!result.destination) return;
 
+    const movedCat = paginatedCategories[result.source.index];
+    const targetCat = paginatedCategories[result.destination.index];
+    
+    if (!movedCat || !targetCat) return;
+
     const items = Array.from(categories);
-    const [moved] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, moved);
+    const fromIndex = items.findIndex(c => c.id === movedCat.id);
+    if (fromIndex === -1) return;
+    
+    items.splice(fromIndex, 1);
+    
+    const toIndex = items.findIndex(c => c.id === targetCat.id);
+    items.splice(toIndex >= 0 ? toIndex : 0, 0, movedCat);
 
     // Assign new sort_order
     const updated = items.map((cat, index) => ({
@@ -629,7 +654,7 @@ export default function Category() {
               <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-white/5">
                 <h3 className="text-lg font-bold text-white drop-shadow">All Categories</h3>
                 <span className="text-sm px-3 py-1 bg-white/10 rounded-full text-white/80 border border-white/10">
-                  {filteredCategories.length} total (Showing top 50)
+                  {filteredCategories.length} total
                 </span>
               </div>
 
@@ -654,7 +679,7 @@ export default function Category() {
                           ref={provided.innerRef}
                           className="divide-y divide-white/5"
                         >
-                          {filteredCategories.slice(0, 50).map((item, index) => (
+                          {paginatedCategories.map((item, index) => (
                             <Draggable
                               key={String(item.id)}
                               draggableId={String(item.id)}
@@ -801,11 +826,41 @@ export default function Category() {
 
               {/* MOBILE VIEW */}
               <div className="md:hidden p-4 space-y-4">
-                {filteredCategories.slice(0, 50).map((item) => (
+                {paginatedCategories.map((item) => (
                   <CategoryCard key={item.id} item={item} />
                 ))}
               </div>
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-lg mt-2">
+                <div className="text-white/70 text-sm text-center sm:text-left">
+                  Showing <span className="font-semibold text-white">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-semibold text-white">{Math.min(currentPage * itemsPerPage, filteredCategories.length)}</span> of <span className="font-semibold text-white">{filteredCategories.length}</span> entries
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all border border-white/10 flex items-center justify-center"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  
+                  <div className="px-4 py-2 bg-white/5 rounded-lg border border-white/10 text-sm font-medium text-white/90">
+                    Page {currentPage} of {totalPages}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all border border-white/10 flex items-center justify-center"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </main>
 

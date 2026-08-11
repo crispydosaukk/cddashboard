@@ -8,7 +8,8 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, X, Edit, Trash2, Save, Upload, Filter,
-  GripVertical, PoundSterling, Tag, Image as ImageIcon, AlertCircle
+  GripVertical, PoundSterling, Tag, Image as ImageIcon, AlertCircle,
+  ChevronLeft, ChevronRight
 } from "lucide-react";
 import { usePopup } from "../../context/PopupContext";
 import { db, storage } from "../../firebase";
@@ -35,6 +36,10 @@ export default function ProductPage() {
   const [categories, setCategories] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [filterCategory, setFilterCategory] = useState("all");
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
 
   const CONTAINS_OPTIONS = [
     { key: "Dairy", icon: "/contains/Dairy.png" },
@@ -128,6 +133,11 @@ export default function ProductPage() {
     const t = setTimeout(() => setDebouncedQuery(searchQuery.trim().toLowerCase()), 300);
     return () => clearTimeout(t);
   }, [searchQuery]);
+
+  // Reset to first page on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedQuery, filterCategory]);
 
   // =============================
   // GLOBAL SEARCH EFFECT
@@ -330,6 +340,13 @@ export default function ProductPage() {
     });
   }, [products, categories, debouncedQuery, filterCategory]);
 
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
 
   const toggleContains = (key) => {
     setForm((prev) => {
@@ -491,11 +508,21 @@ export default function ProductPage() {
   const onDragEnd = async (result) => {
     if (!result.destination) return;
 
-    const items = Array.from(products);
-    const [moved] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, moved);
+    const movedProduct = paginatedProducts[result.source.index];
+    const targetProduct = paginatedProducts[result.destination.index];
+    
+    if (!movedProduct || !targetProduct) return;
 
-    const updated = items.map((p, i) => ({
+    const allItems = Array.from(products);
+    const fromIndex = allItems.findIndex(p => p.id === movedProduct.id);
+    if (fromIndex === -1) return;
+    
+    allItems.splice(fromIndex, 1);
+    
+    const toIndex = allItems.findIndex(p => p.id === targetProduct.id);
+    allItems.splice(toIndex >= 0 ? toIndex : 0, 0, movedProduct);
+
+    const updated = allItems.map((p, i) => ({
       ...p,
       sort_order: i + 1
     }));
@@ -741,7 +768,7 @@ export default function ProductPage() {
                 <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-white/5">
                   <h3 className="text-lg font-bold text-white drop-shadow">Products List</h3>
                   <span className="text-sm px-3 py-1 bg-white/10 rounded-full text-white/80 border border-white/10">
-                    {filteredProducts.length} items (Showing top 50)
+                    {filteredProducts.length} items
                   </span>
                 </div>
                 {filteredProducts.length === 0 ? (
@@ -770,7 +797,7 @@ export default function ProductPage() {
                               {...provided.droppableProps}
                               className="divide-y divide-white/5"
                             >
-                              {filteredProducts.slice(0, 50).map((p, index) => (
+                              {paginatedProducts.map((p, index) => (
                                 <Draggable
                                   key={String(p.id)}
                                   draggableId={String(p.id)}
@@ -952,10 +979,40 @@ export default function ProductPage() {
                 {filteredProducts.length === 0 ? (
                   <div className="py-8 text-center text-white/50">No products match your search.</div>
                 ) : (
-                  filteredProducts.slice(0, 50).map((p) => <ProductCard key={String(p.id)} p={p} />)
+                  paginatedProducts.map((p) => <ProductCard key={String(p.id)} p={p} />)
                 )}
               </div>
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-lg mt-2">
+                <div className="text-white/70 text-sm text-center sm:text-left">
+                  Showing <span className="font-semibold text-white">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-semibold text-white">{Math.min(currentPage * itemsPerPage, filteredProducts.length)}</span> of <span className="font-semibold text-white">{filteredProducts.length}</span> entries
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all border border-white/10 flex items-center justify-center"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  
+                  <div className="px-4 py-2 bg-white/5 rounded-lg border border-white/10 text-sm font-medium text-white/90">
+                    Page {currentPage} of {totalPages}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg bg-white/5 text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all border border-white/10 flex items-center justify-center"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </main>
 
