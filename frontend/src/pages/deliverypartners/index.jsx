@@ -5,12 +5,12 @@ import Footer from "../../components/common/footer.jsx";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, Plus, Edit, Trash2, X, Bike, User, Mail, Lock,
-  Phone, Eye, EyeOff, CheckCircle, XCircle, RefreshCw, Truck
+  Phone, Eye, EyeOff, CheckCircle, XCircle, RefreshCw, Shield
 } from "lucide-react";
 import { usePopup } from "../../context/PopupContext";
 import { db, firebaseConfig } from "../../firebase";
 import {
-  collection, getDocs, doc, deleteDoc, updateDoc, addDoc, serverTimestamp
+  collection, getDocs, doc, deleteDoc, updateDoc, addDoc
 } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
@@ -74,6 +74,10 @@ export default function DeliveryPartners() {
   useEffect(() => {
     fetchPartners();
   }, []);
+
+  // Stats
+  const activeCount = useMemo(() => partners.filter((p) => Number(p.status) === 1).length, [partners]);
+  const inactiveCount = useMemo(() => partners.filter((p) => Number(p.status) === 0).length, [partners]);
 
   // Filtered partners
   const filtered = useMemo(() => {
@@ -220,7 +224,7 @@ export default function DeliveryPartners() {
 
   // Toggle Status
   const handleToggleStatus = async (p) => {
-    const nextStatus = p.status === 1 ? 0 : 1;
+    const nextStatus = Number(p.status) === 1 ? 0 : 1;
     try {
       await updateDoc(doc(db, "delivery_partners", String(p.id)), { status: nextStatus });
       await fetchPartners();
@@ -235,207 +239,288 @@ export default function DeliveryPartners() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white font-sans overflow-hidden">
-      {/* Sidebar */}
+    <div className="min-h-screen bg-gradient-to-br from-amber-900 via-teal-800 to-emerald-900 font-sans text-white">
+      <Header onToggleSidebar={() => setSidebarOpen((s) => !s)} darkMode={true} />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      <div className={`flex-1 flex flex-col min-h-screen pt-36 lg:pt-24 transition-all duration-300 ease-in-out ${sidebarOpen ? "lg:pl-72" : "lg:pl-0"}`}>
+        <main className="flex-1 px-4 sm:px-6 lg:px-10 py-8">
+          <div className="max-w-7xl mx-auto space-y-6">
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 space-y-6 custom-scrollbar">
-          {/* Top Banner */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/5 border border-white/10 rounded-2xl p-6 backdrop-blur-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
-                <Bike size={26} />
+            {/* Top Banner */}
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-2"
+            >
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-white/10 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20">
+                  <Bike className="text-white" size={30} />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold text-white drop-shadow-lg flex items-center gap-3">
+                    Delivery Partners
+                    <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                      {partners.length} Total
+                    </span>
+                  </h1>
+                  <p className="text-white/80 mt-1 text-base drop-shadow">
+                    Create, manage, and dispatch delivery accounts for the mobile app
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-                  Delivery Partners
-                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    {partners.length} Total
-                  </span>
-                </h1>
-                <p className="text-white/50 text-sm mt-0.5">
-                  Create and manage delivery accounts for the mobile app
-                </p>
+
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <button
+                  onClick={fetchPartners}
+                  disabled={loading}
+                  className="px-4 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-xl text-white font-semibold rounded-xl border border-white/20 shadow-xl transition-all duration-200 flex items-center gap-2 disabled:opacity-50 text-base"
+                  title="Refresh Partners"
+                >
+                  <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                  Refresh
+                </button>
+                <button
+                  onClick={() => setOpenCreate(true)}
+                  className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-emerald-600/80 hover:bg-emerald-600 backdrop-blur-md text-white rounded-xl font-bold shadow-lg border border-white/20 transition-all hover:-translate-y-0.5 text-base"
+                >
+                  <Plus size={20} />
+                  Add Delivery Partner
+                </button>
+              </div>
+            </motion.div>
+
+            {/* Stats Cards - Glassmorphism */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-5 border border-white/20 shadow-2xl hover:bg-white/15 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white/80">Total Partners</p>
+                    <p className="text-3xl font-bold text-white mt-1 drop-shadow-lg">{partners.length}</p>
+                  </div>
+                  <div className="p-3 bg-white/10 backdrop-blur-md rounded-xl border border-white/20">
+                    <Bike className="text-emerald-300" size={24} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-5 border border-white/20 shadow-2xl hover:bg-white/15 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white/80">Active Partners</p>
+                    <p className="text-3xl font-bold text-white mt-1 drop-shadow-lg">{activeCount}</p>
+                  </div>
+                  <div className="p-3 bg-emerald-500/20 backdrop-blur-md rounded-xl border border-emerald-500/30">
+                    <CheckCircle className="text-emerald-400" size={24} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-5 border border-white/20 shadow-2xl hover:bg-white/15 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white/80">Inactive Partners</p>
+                    <p className="text-3xl font-bold text-white mt-1 drop-shadow-lg">{inactiveCount}</p>
+                  </div>
+                  <div className="p-3 bg-red-500/20 backdrop-blur-md rounded-xl border border-red-500/30">
+                    <XCircle className="text-red-400" size={24} />
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <button
-                onClick={fetchPartners}
-                className="p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-white/70 hover:text-white transition-all"
-                title="Refresh Partners"
-              >
-                <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
-              </button>
-              <button
-                onClick={() => setOpenCreate(true)}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-3 rounded-xl font-medium shadow-lg shadow-emerald-500/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
-              >
-                <Plus size={18} />
-                <span>Add Delivery Partner</span>
-              </button>
-            </div>
-          </div>
+            {/* Table Container */}
+            <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+              {/* Search Toolbar */}
+              <div className="p-4 border-b border-white/10 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/5">
+                <div className="relative w-full sm:w-96">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, phone, vehicle..."
+                    value={q}
+                    onChange={(e) => { setQ(e.target.value); setPage(1); }}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all text-sm"
+                  />
+                </div>
+                <div className="text-white/60 text-sm font-medium self-end sm:self-auto">
+                  Showing {paged.length} of {total} partners
+                </div>
+              </div>
 
-          {/* Search bar */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-xl flex flex-col sm:flex-row gap-4 justify-between items-center">
-            <div className="relative w-full sm:max-w-md">
-              <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
-              <input
-                type="text"
-                placeholder="Search by name, email, phone, or vehicle..."
-                value={q}
-                onChange={(e) => { setQ(e.target.value); setPage(1); }}
-                className="w-full bg-slate-900/60 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-              />
-            </div>
-            <div className="flex items-center gap-2 text-white/50 text-xs self-end sm:self-auto">
-              <span>Showing {paged.length} of {total} partners</span>
-            </div>
-          </div>
-
-          {/* Table */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-xl">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-white/10 bg-white/5 text-white/50 text-xs uppercase tracking-wider">
-                    <th className="p-4 font-semibold">Partner</th>
-                    <th className="p-4 font-semibold">Contact Info</th>
-                    <th className="p-4 font-semibold">Vehicle</th>
-                    <th className="p-4 font-semibold">App Password</th>
-                    <th className="p-4 font-semibold">Status</th>
-                    <th className="p-4 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5 text-sm">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-white/40">
-                        <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-emerald-400" />
-                        Loading delivery partners...
-                      </td>
+              {/* Partners Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10 text-white/70 text-xs uppercase tracking-wider">
+                      <th className="px-6 py-4 font-bold">Partner</th>
+                      <th className="px-6 py-4 font-bold">Contact Info</th>
+                      <th className="px-6 py-4 font-bold">Vehicle</th>
+                      <th className="px-6 py-4 font-bold">App Password</th>
+                      <th className="px-6 py-4 font-bold">Status</th>
+                      <th className="px-6 py-4 font-bold text-right">Actions</th>
                     </tr>
-                  ) : paged.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-white/40">
-                        <Bike size={36} className="mx-auto mb-2 opacity-30" />
-                        No delivery partners found. Click "Add Delivery Partner" to create one.
-                      </td>
-                    </tr>
-                  ) : (
-                    paged.map((p) => {
-                      const isRevealed = !!revealedPasswords[p.id];
-                      return (
-                        <tr key={p.id} className="hover:bg-white/5 transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center font-bold text-white shadow">
-                                {(p.name || "D").charAt(0).toUpperCase()}
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-white/90 text-sm">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-white/50">
+                          <RefreshCw size={28} className="animate-spin mx-auto mb-3 text-emerald-400" />
+                          Loading delivery partners...
+                        </td>
+                      </tr>
+                    ) : paged.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-white/50">
+                          <Bike size={42} className="mx-auto mb-3 text-white/30" />
+                          No delivery partners found. Click "Add Delivery Partner" to create one.
+                        </td>
+                      </tr>
+                    ) : (
+                      paged.map((p, idx) => {
+                        const isRevealed = !!revealedPasswords[p.id];
+                        const isActive = Number(p.status) === 1;
+                        return (
+                          <motion.tr
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: idx * 0.04 }}
+                            key={p.id}
+                            className="hover:bg-white/5 transition-colors"
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center font-bold text-white shadow-lg border border-white/20">
+                                  {(p.name || "D").charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-white">{p.name || "Delivery Partner"}</div>
+                                  <div className="text-white/40 text-xs font-mono">ID: {p.id.slice(0, 8)}</div>
+                                </div>
                               </div>
-                              <div>
-                                <div className="font-semibold text-white">{p.name || "Delivery Boy"}</div>
-                                <div className="text-white/40 text-xs">ID: {p.id.slice(0, 8)}...</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="space-y-1">
+                                <div className="text-white/90 flex items-center gap-2 text-xs">
+                                  <Mail size={13} className="text-emerald-300" />
+                                  <span>{p.email}</span>
+                                </div>
+                                <div className="text-white/70 flex items-center gap-2 text-xs">
+                                  <Phone size={13} className="text-teal-300" />
+                                  <span>{p.mobile_number || p.phone || "-"}</span>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <div className="space-y-1">
-                              <div className="text-white/80 flex items-center gap-1.5 text-xs">
-                                <Mail size={13} className="text-white/40" />
-                                {p.email}
-                              </div>
-                              <div className="text-white/80 flex items-center gap-1.5 text-xs">
-                                <Phone size={13} className="text-white/40" />
-                                {p.mobile_number || p.phone || "No phone"}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-medium">
-                              <Bike size={13} />
-                              {p.vehicle_type || "Bike"}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-xs bg-slate-950/60 px-2 py-1 rounded border border-white/10 text-white/80">
-                                {isRevealed ? (p.password || "••••••••") : "••••••••"}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
+                                <Bike size={13} />
+                                {p.vehicle_type || "Bike"}
                               </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs bg-black/30 px-3 py-1 rounded-lg border border-white/10 text-white/90">
+                                  {isRevealed ? (p.password || "••••••••") : "••••••••"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => togglePasswordReveal(p.id)}
+                                  className="p-1.5 hover:bg-white/10 rounded-lg text-white/50 hover:text-white transition-colors"
+                                  title={isRevealed ? "Hide Password" : "Show Password"}
+                                >
+                                  {isRevealed ? <EyeOff size={15} /> : <Eye size={15} />}
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
                               <button
-                                onClick={() => togglePasswordReveal(p.id)}
-                                className="text-white/40 hover:text-white transition-colors"
-                                title={isRevealed ? "Hide Password" : "Show Password"}
+                                type="button"
+                                onClick={() => handleToggleStatus(p)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all ${
+                                  isActive
+                                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                                    : "bg-red-500/20 text-red-300 border-red-500/40 hover:bg-red-500/30"
+                                }`}
+                                title="Click to toggle status"
                               >
-                                {isRevealed ? <EyeOff size={15} /> : <Eye size={15} />}
+                                {isActive ? <CheckCircle size={13} /> : <XCircle size={13} />}
+                                <span>{isActive ? "Active" : "Inactive"}</span>
                               </button>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <button
-                              onClick={() => handleToggleStatus(p)}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
-                                p.status === 1
-                                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30"
-                                  : "bg-red-500/20 text-red-300 border-red-500/30 hover:bg-red-500/30"
-                              }`}
-                            >
-                              {p.status === 1 ? <CheckCircle size={12} /> : <XCircle size={12} />}
-                              {p.status === 1 ? "Active" : "Inactive"}
-                            </button>
-                          </td>
-                          <td className="p-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() => openEditFor(p)}
-                                className="p-2 hover:bg-white/10 rounded-lg text-white/60 hover:text-white transition-colors"
-                                title="Edit Partner"
-                              >
-                                <Edit size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(p)}
-                                className="p-2 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300 transition-colors"
-                                title="Delete Partner"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditFor(p)}
+                                  className="p-2 bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 rounded-lg transition-colors border border-blue-500/30"
+                                  title="Edit Partner"
+                                >
+                                  <Edit size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(p)}
+                                  className="p-2 bg-red-500/20 text-red-300 hover:bg-red-500/30 rounded-lg transition-colors border border-red-500/30"
+                                  title="Delete Partner"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </motion.tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="p-4 border-t border-white/10 flex items-center justify-between text-xs text-white/50">
-                <span>Page {currentPage} of {totalPages}</span>
-                <div className="flex gap-2">
+              {/* Table Footer / Pagination */}
+              <div className="p-4 border-t border-white/10 bg-white/5 text-white/60 text-sm flex justify-between items-center">
+                <span>Showing {paged.length} of {total} entries</span>
+                <div className="flex items-center gap-1">
                   <button
-                    disabled={currentPage <= 1}
+                    type="button"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 transition-colors text-white"
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
                   >
-                    Previous
+                    &laquo; Prev
                   </button>
+                  {[...Array(totalPages).keys()].slice(Math.max(0, currentPage - 3), Math.min(totalPages, currentPage + 2)).map((num) => (
+                    <button
+                      type="button"
+                      key={num}
+                      onClick={() => setPage(num + 1)}
+                      className={`w-8 h-8 rounded-lg font-bold flex items-center justify-center transition-all ${
+                        currentPage === num + 1
+                          ? "bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
+                          : "bg-white/5 text-white/60 hover:bg-white/10"
+                      }`}
+                    >
+                      {num + 1}
+                    </button>
+                  ))}
                   <button
-                    disabled={currentPage >= totalPages}
+                    type="button"
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 transition-colors text-white"
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
                   >
-                    Next
+                    Next &raquo;
                   </button>
                 </div>
               </div>
+            </div>
+
+            {error && (
+              <div className="mt-4 p-4 bg-red-500/20 border border-red-500/40 rounded-xl text-red-200 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-400" />
+                {error}
+              </div>
             )}
+
           </div>
         </main>
 
@@ -445,119 +530,119 @@ export default function DeliveryPartners() {
       {/* CREATE MODAL */}
       <AnimatePresence>
         {openCreate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setOpenCreate(false)}
+            />
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+              className="relative w-full max-w-lg bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl overflow-hidden p-6 max-h-[90vh] flex flex-col"
             >
-              <div className="p-5 border-b border-white/10 flex justify-between items-center bg-white/5">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Bike className="text-emerald-400" size={20} />
-                  Add Delivery Partner
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Bike className="text-emerald-400" /> New Delivery Partner
                 </h3>
                 <button
+                  type="button"
                   onClick={() => setOpenCreate(false)}
-                  className="text-white/40 hover:text-white p-1 rounded-lg"
+                  className="text-white/50 hover:text-white transition-colors"
                 >
-                  <X size={20} />
+                  <X size={24} />
                 </button>
               </div>
 
-              <div className="p-5 space-y-4">
+              <div className="space-y-4 flex-1 overflow-y-auto pr-1">
                 <div>
-                  <label className="text-xs text-white/60 font-medium block mb-1.5">Full Name *</label>
-                  <div className="relative">
-                    <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
-                    <input
-                      type="text"
-                      placeholder="e.g. John Doe"
-                      value={cName}
-                      onChange={(e) => setCName(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                    />
-                  </div>
+                  <label className="text-xs text-white/80 font-medium block mb-1.5">Partner Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. John Doe"
+                    value={cName}
+                    onChange={(e) => setCName(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
                 </div>
 
                 <div>
-                  <label className="text-xs text-white/60 font-medium block mb-1.5">Email Address (Login ID) *</label>
-                  <div className="relative">
-                    <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
-                    <input
-                      type="email"
-                      placeholder="e.g. partner@crispydosa.com"
-                      value={cEmail}
-                      onChange={(e) => setCEmail(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                    />
-                  </div>
+                  <label className="text-xs text-white/80 font-medium block mb-1.5">Email Address (Login ID)</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="delivery@crispydosa.com"
+                    value={cEmail}
+                    onChange={(e) => setCEmail(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
                 </div>
 
                 <div>
-                  <label className="text-xs text-white/60 font-medium block mb-1.5">Password *</label>
+                  <label className="text-xs text-white/80 font-medium block mb-1.5">Mobile Number</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. +44 7123 456789"
+                    value={cPhone}
+                    onChange={(e) => setCPhone(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-white/80 font-medium block mb-1.5">Vehicle Type</label>
+                  <select
+                    value={cVehicle}
+                    onChange={(e) => setCVehicle(e.target.value)}
+                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  >
+                    <option value="Bike">Motorbike</option>
+                    <option value="Bicycle">Bicycle</option>
+                    <option value="Car">Car</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-white/80 font-medium block mb-1.5">App Password</label>
                   <div className="relative">
-                    <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
                     <input
                       type={showCPassword ? "text" : "password"}
-                      placeholder="At least 6 characters"
+                      required
+                      placeholder="Enter mobile app login password"
                       value={cPassword}
                       onChange={(e) => setCPassword(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-10 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                     />
                     <button
                       type="button"
                       onClick={() => setShowCPassword(!showCPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
                     >
                       {showCPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                 </div>
-
-                <div>
-                  <label className="text-xs text-white/60 font-medium block mb-1.5">Mobile Number</label>
-                  <div className="relative">
-                    <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
-                    <input
-                      type="text"
-                      placeholder="e.g. +44 7123 456789"
-                      value={cPhone}
-                      onChange={(e) => setCPhone(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs text-white/60 font-medium block mb-1.5">Vehicle Type</label>
-                  <select
-                    value={cVehicle}
-                    onChange={(e) => setCVehicle(e.target.value)}
-                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                  >
-                    <option value="Bike">Motorbike / Scooter</option>
-                    <option value="Bicycle">Bicycle / E-Bike</option>
-                    <option value="Car">Car / Van</option>
-                  </select>
-                </div>
               </div>
 
-              <div className="p-5 border-t border-white/10 flex justify-end gap-3 bg-white/5">
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setOpenCreate(false)}
-                  className="px-4 py-2 text-sm rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+                  className="px-5 py-2.5 rounded-xl border border-white/10 text-white/70 hover:bg-white/10 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  disabled={!canSave || saving}
+                  disabled={saving || !canSave}
                   onClick={handleCreate}
-                  className="px-5 py-2 text-sm rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white font-medium shadow-lg shadow-emerald-500/20 transition-all"
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow-lg border border-white/10 transition-all hover:-translate-y-0.5 disabled:opacity-60"
                 >
-                  {saving ? "Creating Account..." : "Create Partner"}
+                  {saving ? "Creating Partner..." : "Create Partner"}
                 </button>
               </div>
             </motion.div>
@@ -568,85 +653,73 @@ export default function DeliveryPartners() {
       {/* EDIT MODAL */}
       <AnimatePresence>
         {openEdit && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setOpenEdit(false)}
+            />
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+              className="relative w-full max-w-lg bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl overflow-hidden p-6 max-h-[90vh] flex flex-col"
             >
-              <div className="p-5 border-b border-white/10 flex justify-between items-center bg-white/5">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Edit className="text-blue-400" size={20} />
-                  Edit Delivery Partner
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Edit className="text-emerald-400" /> Edit Delivery Partner
                 </h3>
                 <button
+                  type="button"
                   onClick={() => setOpenEdit(false)}
-                  className="text-white/40 hover:text-white p-1 rounded-lg"
+                  className="text-white/50 hover:text-white transition-colors"
                 >
-                  <X size={20} />
+                  <X size={24} />
                 </button>
               </div>
 
-              <div className="p-5 space-y-4">
+              <div className="space-y-4 flex-1 overflow-y-auto pr-1">
                 <div>
-                  <label className="text-xs text-white/60 font-medium block mb-1.5">Full Name *</label>
+                  <label className="text-xs text-white/80 font-medium block mb-1.5">Partner Name</label>
                   <input
                     type="text"
+                    required
                     value={eName}
                     onChange={(e) => setEName(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-white/60 font-medium block mb-1.5">Email Address *</label>
+                  <label className="text-xs text-white/80 font-medium block mb-1.5">Email Address</label>
                   <input
                     type="email"
+                    required
                     value={eEmail}
                     onChange={(e) => setEEmail(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-white/60 font-medium block mb-1.5">
-                    Password (leave empty to keep unchanged)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showEPassword ? "text" : "password"}
-                      value={ePassword}
-                      onChange={(e) => setEPassword(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-3 pr-10 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowEPassword(!showEPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
-                    >
-                      {showEPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs text-white/60 font-medium block mb-1.5">Mobile Number</label>
+                  <label className="text-xs text-white/80 font-medium block mb-1.5">Mobile Number</label>
                   <input
-                    type="text"
+                    type="tel"
                     value={ePhone}
                     onChange={(e) => setEPhone(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-white/60 font-medium block mb-1.5">Vehicle</label>
+                    <label className="text-xs text-white/80 font-medium block mb-1.5">Vehicle</label>
                     <select
                       value={eVehicle}
                       onChange={(e) => setEVehicle(e.target.value)}
-                      className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none"
+                      className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                     >
                       <option value="Bike">Motorbike</option>
                       <option value="Bicycle">Bicycle</option>
@@ -654,24 +727,44 @@ export default function DeliveryPartners() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-white/60 font-medium block mb-1.5">Status</label>
+                    <label className="text-xs text-white/80 font-medium block mb-1.5">Status</label>
                     <select
                       value={eStatus}
                       onChange={(e) => setEStatus(Number(e.target.value))}
-                      className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none"
+                      className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                     >
                       <option value={1}>Active</option>
                       <option value={0}>Inactive</option>
                     </select>
                   </div>
                 </div>
+
+                <div>
+                  <label className="text-xs text-white/80 font-medium block mb-1.5">Reset App Password (optional)</label>
+                  <div className="relative">
+                    <input
+                      type={showEPassword ? "text" : "password"}
+                      placeholder="Leave blank to keep unchanged"
+                      value={ePassword}
+                      onChange={(e) => setEPassword(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 pr-10 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEPassword(!showEPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors"
+                    >
+                      {showEPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div className="p-5 border-t border-white/10 flex justify-end gap-3 bg-white/5">
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setOpenEdit(false)}
-                  className="px-4 py-2 text-sm rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+                  className="px-5 py-2.5 rounded-xl border border-white/10 text-white/70 hover:bg-white/10 transition-colors"
                 >
                   Cancel
                 </button>
@@ -679,7 +772,7 @@ export default function DeliveryPartners() {
                   type="button"
                   disabled={updating}
                   onClick={handleUpdate}
-                  className="px-5 py-2 text-sm rounded-xl bg-blue-500 hover:bg-blue-600 disabled:opacity-40 text-white font-medium shadow-lg shadow-blue-500/20 transition-all"
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow-lg border border-white/10 transition-all hover:-translate-y-0.5 disabled:opacity-60"
                 >
                   {updating ? "Saving Changes..." : "Save Changes"}
                 </button>

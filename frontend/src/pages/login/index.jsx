@@ -55,27 +55,57 @@ export default function LoginPage() {
       let roleTitle = null;
       let permissions = [];
       
+      const pSnapshot = await getDocs(collection(db, "permissions"));
+      const allPerms = pSnapshot.docs.map(d => ({ id: String(d.id), ...d.data() }));
+
+      const isSuper = (
+        String(userData.role_id) === "6" || 
+        email === "rahulbadugu22@gmail.com" || 
+        email === "sandeep786@gmail.com"
+      );
+
       if (userData.role_id) {
-        // Get Role Title
+        // Get Role Title & permissions on role document
         const roleDoc = await getDoc(doc(db, "roles", String(userData.role_id)));
+        let rolePermIds = [];
+
         if (roleDoc.exists()) {
-          roleTitle = roleDoc.data().title;
+          const roleData = roleDoc.data();
+          roleTitle = roleData.title;
+          if (Array.isArray(roleData.permission_ids)) {
+            rolePermIds = roleData.permission_ids.map(String);
+          }
         }
-        
-        // Get Permission IDs for this role
-        const prQuery = query(collection(db, "permission_role"), where("role_id", "==", Number(userData.role_id)));
-        const prSnapshot = await getDocs(prQuery);
-        const permissionIds = prSnapshot.docs.map(d => d.data().permission_id);
-        
-        // Get Permission Titles
-        if (permissionIds.length > 0) {
-          const pSnapshot = await getDocs(collection(db, "permissions"));
-          const allPerms = pSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-          
-          permissions = allPerms
-            .filter(p => permissionIds.includes(Number(p.id)))
-            .map(p => String(p.title).toLowerCase());
+
+        if (isSuper || (roleTitle && roleTitle.toLowerCase().includes("super"))) {
+          // Super Admin has all permissions
+          permissions = allPerms.map(p => String(p.title || "").toLowerCase()).filter(Boolean);
+        } else {
+          // Fallback to permission_role collection if role document doesn't have permission_ids
+          if (rolePermIds.length === 0) {
+            try {
+              const numId = Number(userData.role_id);
+              const prQuery = !isNaN(numId)
+                ? query(collection(db, "permission_role"), where("role_id", "==", numId))
+                : query(collection(db, "permission_role"), where("role_id", "==", String(userData.role_id)));
+              const prSnapshot = await getDocs(prQuery);
+              rolePermIds = prSnapshot.docs.map(d => String(d.data().permission_id));
+            } catch (err) {
+              console.warn("Could not query permission_role:", err);
+            }
+          }
+
+          // Map permission IDs to permission titles
+          if (rolePermIds.length > 0) {
+            permissions = allPerms
+              .filter(p => rolePermIds.includes(String(p.id)) || (p.id && rolePermIds.includes(String(p.id))))
+              .map(p => String(p.title || "").toLowerCase())
+              .filter(Boolean);
+          }
         }
+      } else if (isSuper) {
+        roleTitle = "Super Admin";
+        permissions = allPerms.map(p => String(p.title || "").toLowerCase()).filter(Boolean);
       }
 
       // 4. Construct Data for localStorage to match old Node backend structure
@@ -84,7 +114,8 @@ export default function LoginPage() {
         name: userData.name, 
         email: userData.email, 
         role_id: userData.role_id, 
-        role_title: roleTitle 
+        role_title: roleTitle || "Admin",
+        role: roleTitle || "Admin"
       };
 
       // We use the Firebase access token as the app token

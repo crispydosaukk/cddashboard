@@ -6,6 +6,7 @@ import { db } from "../../firebase";
 import { collection, query, where, onSnapshot, writeBatch, getDocs } from "firebase/firestore";
 import ReadyInModal from "./ReadyInModal.jsx";
 import { usePopup } from "../../context/PopupContext";
+import { isSuperAdmin, getUser } from "../../utils/perm";
 
 // Helper to load Google Maps Script dynamically
 const loadGoogleMapsScript = (apiKey, callback) => {
@@ -645,19 +646,29 @@ export default function Header({ onToggleSidebar, darkMode = true }) {
 
             {/* Profile */}
             <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setOpenMenu((v) => !v)}
-                className="flex items-center gap-2 sm:gap-3 p-1 rounded-full hover:bg-white/5 transition-all pr-2 sm:pr-4 border border-transparent hover:border-white/10"
-              >
-                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 border border-white/20">
-                  A
-                </div>
-                <div className="text-left hidden sm:block">
-                  <p className="text-sm font-semibold leading-none text-white">Admin</p>
-                  <p className="text-[10px] mt-1 font-medium tracking-wide text-white/60">SUPER ADMIN</p>
-                </div>
-                <ChevronDown size={14} className="hidden sm:block text-white/60" />
-              </button>
+              {(() => {
+                const currentUser = getUser();
+                const userName = currentUser?.name || "Admin";
+                const userInitial = userName.charAt(0).toUpperCase();
+                const userRoleDisplay = isSuperAdmin(currentUser)
+                  ? "SUPER ADMIN"
+                  : (currentUser?.role_title || currentUser?.role || "ADMIN").toUpperCase();
+                return (
+                  <button
+                    onClick={() => setOpenMenu((v) => !v)}
+                    className="flex items-center gap-2 sm:gap-3 p-1 rounded-full hover:bg-white/5 transition-all pr-2 sm:pr-4 border border-transparent hover:border-white/10"
+                  >
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center font-bold text-xs sm:text-sm shadow-lg shadow-emerald-500/20 border border-white/20">
+                      {userInitial}
+                    </div>
+                    <div className="text-left hidden sm:block">
+                      <p className="text-sm font-semibold leading-none text-white truncate max-w-[120px]">{userName}</p>
+                      <p className="text-[10px] mt-1 font-medium tracking-wide text-white/60">{userRoleDisplay}</p>
+                    </div>
+                    <ChevronDown size={14} className="hidden sm:block text-white/60" />
+                  </button>
+                );
+              })()}
 
               {/* Profile Dropdown */}
               {openMenu && (

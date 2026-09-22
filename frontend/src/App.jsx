@@ -142,7 +142,7 @@ export default function App() {
             path="/delivery-orders"
             element={
               <PrivateRoute>
-                <RequirePerm perm="order_management">
+                <RequirePerm perm="delivery_orders">
                   <DeliveryOrders />
                 </RequirePerm>
               </PrivateRoute>
@@ -153,7 +153,7 @@ export default function App() {
             path="/delivery-partners"
             element={
               <PrivateRoute>
-                <RequirePerm perm="order_management">
+                <RequirePerm perm="delivery_partners">
                   <DeliveryPartners />
                 </RequirePerm>
               </PrivateRoute>

@@ -111,13 +111,28 @@ export default function Roles() {
     try {
       setRolesLoading(true);
       const res = await getDocs(collection(db, "roles"));
+      
+      // Fetch permission_role snapshot to bridge legacy role permission data
+      let prList = [];
+      try {
+        const prRes = await getDocs(collection(db, "permission_role"));
+        prList = prRes.docs.map(d => d.data());
+      } catch (err) {
+        console.warn("Could not load permission_role:", err);
+      }
+
       const list = res.docs.map(docSnap => {
          const data = docSnap.data();
          let pIds = data.permission_ids;
          if (typeof pIds === 'string') {
              try { pIds = JSON.parse(pIds); } catch(e){ pIds = []; }
          }
-         if (!Array.isArray(pIds)) pIds = [];
+         if (!Array.isArray(pIds) || pIds.length === 0) {
+           const legacyMatches = prList
+             .filter(pr => String(pr.role_id) === String(docSnap.id) || String(pr.role_id) === String(data.id))
+             .map(pr => String(pr.permission_id));
+           pIds = legacyMatches;
+         }
          
          const rolePerms = pIds.map(id => perms.find(p => String(p.id) === String(id))).filter(Boolean);
          return { id: docSnap.id, ...data, permissions: rolePerms };

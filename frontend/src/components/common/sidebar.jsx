@@ -93,8 +93,8 @@ export default function Sidebar({ open, onClose }) {
       { label: "Customer Details", to: "/customerdetails", icon: iconCustomerDetails(), perm: "customer_details" },
       { label: "Settings", to: "/settings", icon: iconSettings(), perm: "settings" },
       { label: "Order Management", to: "/orders", icon: iconOrders(), perm: "order_management" },
-      { label: "Delivery Orders", to: "/delivery-orders", icon: iconTruck(), perm: "order_management" },
-      { label: "Delivery Partners", to: "/delivery-partners", icon: iconBike(), perm: "order_management" },
+      { label: "Delivery Orders", to: "/delivery-orders", icon: iconTruck(), perm: "delivery_orders" },
+      { label: "Delivery Partners", to: "/delivery-partners", icon: iconBike(), perm: "delivery_partners" },
     ],
     []
   );
@@ -143,8 +143,7 @@ export default function Sidebar({ open, onClose }) {
     );
   }, [rawAccessChildren, debouncedQuery]);
 
-  const showAccessGroup =
-    filteredAccessChildren.length > 0 || location.pathname.startsWith("/access");
+  const showAccessGroup = filteredAccessChildren.length > 0;
 
   const [user] = useState(() => {
     try {

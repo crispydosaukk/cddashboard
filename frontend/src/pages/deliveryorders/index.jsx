@@ -364,27 +364,27 @@ export default function DeliveryOrders() {
   const currentOrders = groupedOrders.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-blue-950 via-teal-900 to-emerald-900 font-sans text-white">
-      <Header onToggleSidebar={() => setSidebarOpen(s => !s)} />
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-amber-900 via-teal-800 to-emerald-900 font-sans text-white">
+      <Header onToggleSidebar={() => setSidebarOpen(s => !s)} darkMode={true} />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <ReadyInModal isOpen={isReadyModalOpen} onClose={() => setIsReadyModalOpen(false)}
         onConfirm={(mins) => { if (orderForReady) { updateOrderStatus(orderForReady, 1, mins); setIsReadyModalOpen(false); setOrderForReady(null); } }}
         orderNumber={orderForReady} />
-      <div className={`flex-1 flex flex-col pt-36 lg:pt-24 transition-all duration-300 ease-in-out ${sidebarOpen ? "lg:pl-72" : "lg:pl-0"}`}>
+      <div className={`flex-1 flex flex-col min-h-screen pt-36 lg:pt-24 transition-all duration-300 ease-in-out ${sidebarOpen ? "lg:pl-72" : "lg:pl-0"}`}>
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
           {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
             <div>
               <h1 className="text-3xl font-bold text-white drop-shadow-md flex items-center gap-3">
-                <Truck className="text-blue-400" /> Delivery Orders
+                <Truck className="text-emerald-400" /> Delivery Orders
               </h1>
-              <p className="text-white/60 mt-1">Live tracking of delivery orders and assigned delivery partners.</p>
+              <p className="text-white/70 mt-1 text-base">Live tracking of delivery orders and assigned delivery partners.</p>
             </div>
             <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md p-2 rounded-xl border border-white/10">
               <label className="flex items-center gap-2 cursor-pointer px-2">
                 <div className="relative">
                   <input type="checkbox" className="sr-only" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} />
-                  <div className={`w-10 h-6 rounded-full shadow-inner transition-colors ${autoRefresh ? "bg-blue-500" : "bg-white/20"}`} />
+                  <div className={`w-10 h-6 rounded-full shadow-inner transition-colors ${autoRefresh ? "bg-emerald-500" : "bg-white/20"}`} />
                   <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform shadow ${autoRefresh ? "translate-x-full" : ""}`} />
                 </div>
                 <span className="text-sm font-medium">Auto-Refresh</span>
@@ -399,10 +399,10 @@ export default function DeliveryOrders() {
           {/* Summary */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {[
-              { label: "Total", value: groupedOrders.length, cls: "bg-blue-500/20 border-blue-500/30 text-blue-300" },
+              { label: "Total", value: groupedOrders.length, cls: "bg-emerald-500/20 border-emerald-500/30 text-emerald-300" },
               { label: "Unassigned", value: groupedOrders.filter(o => !o.assigned_delivery_boy_id && [0,1,3].includes(Number(o.order_status))).length, cls: "bg-amber-500/20 border-amber-500/30 text-amber-300" },
               { label: "Out for Delivery", value: groupedOrders.filter(o => o.delivery_status === "out_for_delivery" || Number(o.order_status) === 3).length, cls: "bg-purple-500/20 border-purple-500/30 text-purple-300" },
-              { label: "Delivered", value: groupedOrders.filter(o => Number(o.order_status) === 4 || o.delivery_status === "delivered").length, cls: "bg-emerald-500/20 border-emerald-500/30 text-emerald-300" },
+              { label: "Delivered", value: groupedOrders.filter(o => Number(o.order_status) === 4 || o.delivery_status === "delivered").length, cls: "bg-teal-500/20 border-teal-500/30 text-teal-300" },
             ].map(s => (
               <div key={s.label} className="rounded-2xl p-4 border backdrop-blur-xl bg-white/10 border-white/20 flex items-center gap-4">
                 <div className={`px-3 py-1 rounded-lg border text-xs font-bold ${s.cls}`}>{s.label}</div>
@@ -417,12 +417,12 @@ export default function DeliveryOrders() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={16} />
                 <input placeholder="Search Order No..." value={searchOrder} onChange={e => setSearchOrder(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
               </div>
               <div className="relative">
                 <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={16} />
                 <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none">
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none">
                   <option value="all" className="bg-slate-800">All Status</option>
                   <option value="0" className="bg-slate-800">Placed</option>
                   <option value="1" className="bg-slate-800">Accepted</option>
@@ -435,7 +435,7 @@ export default function DeliveryOrders() {
               <div className="relative">
                 <Bike className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={16} />
                 <select value={filterPartner} onChange={e => setFilterPartner(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none">
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none">
                   <option value="all" className="bg-slate-800">All Delivery Partners</option>
                   <option value="unassigned" className="bg-slate-800">⚠️ Unassigned Only</option>
                   {partners.map(p => (
@@ -444,9 +444,9 @@ export default function DeliveryOrders() {
                 </select>
               </div>
               <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
             </div>
           </div>
 
@@ -465,12 +465,12 @@ export default function DeliveryOrders() {
               const paidTotal = safeNumber(order.grand_total) || items.reduce((s, i) => s + safeNumber(i.price) * safeNumber(i.quantity), 0);
               const totalQty = items.reduce((s, i) => s + safeNumber(i.quantity), 0);
               return (
-                <div key={index} className="bg-white/10 backdrop-blur-xl border border-blue-500/20 rounded-2xl overflow-hidden hover:bg-white/15 transition-all shadow-xl flex flex-col">
-                  <div className="p-4 border-b border-white/10 flex justify-between items-start bg-blue-500/5">
+                <div key={index} className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl overflow-hidden hover:bg-white/15 transition-all shadow-xl flex flex-col">
+                  <div className="p-4 border-b border-white/10 flex justify-between items-start bg-black/10">
                     <div className="flex-1 min-w-0 mr-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-xl font-bold text-white truncate">{order.order_number}</h3>
-                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-blue-500/20 text-blue-300 border border-blue-500/30">🛵 Delivery</span>
+                        <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🛵 Delivery</span>
                         {autoRefresh && order.order_status === 0 && <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0" />}
                       </div>
                       <div className="text-xs text-white/60 mt-1 flex items-center gap-2"><Calendar size={12} />{formatDate(order.created_at)}</div>
@@ -479,7 +479,7 @@ export default function DeliveryOrders() {
                       <div className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${statusInfo.bg} ${statusInfo.color} ${statusInfo.border}`}>
                         <StatusIcon size={12} />{statusInfo.text}
                       </div>
-                      <button onClick={() => setSelectedOrder(order)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-blue-300 transition-colors" title="View Details">
+                      <button onClick={() => setSelectedOrder(order)} className="p-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-emerald-300 transition-colors" title="View Details">
                         <Eye size={20} />
                       </button>
                     </div>
@@ -518,7 +518,7 @@ export default function DeliveryOrders() {
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                         order.delivery_status === "delivered" ? "bg-emerald-500/20 text-emerald-300" :
                         order.delivery_status === "out_for_delivery" ? "bg-purple-500/20 text-purple-300" :
-                        "bg-blue-500/20 text-blue-300"
+                        "bg-teal-500/20 text-teal-300"
                       }`}>
                         {order.delivery_status.replace(/_/g, " ")}
                       </span>
@@ -538,9 +538,9 @@ export default function DeliveryOrders() {
                   </div>
 
                   {order.delivery_address && (
-                    <div className="px-4 py-3 bg-blue-500/5 border-b border-blue-500/10">
-                      <div className="flex items-start gap-2 text-xs text-blue-300">
-                        <MapPin size={12} className="shrink-0 mt-0.5" />
+                    <div className="px-4 py-3 bg-white/5 border-b border-white/10">
+                      <div className="flex items-start gap-2 text-xs text-white/80">
+                        <MapPin size={12} className="shrink-0 mt-0.5 text-emerald-400" />
                         <span className="line-clamp-2 leading-relaxed">{order.delivery_address}</span>
                       </div>
                     </div>
@@ -576,7 +576,7 @@ export default function DeliveryOrders() {
                         <button onClick={() => updateOrderStatus(order.order_number, 3)} className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"><ShoppingBag size={18} />Mark Ready</button>
                       )}
                       {order.order_status === 3 && (
-                        <button onClick={() => updateOrderStatus(order.order_number, 4)} className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"><Truck size={18} />Mark as Delivered</button>
+                        <button onClick={() => updateOrderStatus(order.order_number, 4)} className="w-full py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"><Truck size={18} />Mark as Delivered</button>
                       )}
                     </div>
                   </div>
@@ -590,7 +590,7 @@ export default function DeliveryOrders() {
               <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Previous</button>
               <div className="flex gap-1">
                 {[...Array(totalPages).keys()].slice(Math.max(0, currentPage - 3), Math.min(totalPages, currentPage + 2)).map(num => (
-                  <button key={num} onClick={() => setCurrentPage(num + 1)} className={`w-10 h-10 rounded-xl font-bold flex items-center justify-center transition-all ${currentPage === num + 1 ? "bg-blue-500 text-white shadow-lg scale-110" : "bg-white/5 text-white/60 hover:bg-white/10"}`}>{num + 1}</button>
+                  <button key={num} onClick={() => setCurrentPage(num + 1)} className={`w-10 h-10 rounded-xl font-bold flex items-center justify-center transition-all ${currentPage === num + 1 ? "bg-emerald-500 text-white shadow-lg scale-110" : "bg-white/5 text-white/60 hover:bg-white/10"}`}>{num + 1}</button>
                 ))}
               </div>
               <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">Next</button>
