@@ -9,7 +9,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   Store, MapPin, Phone, Mail, Facebook, Twitter, Instagram, Linkedin,
   ParkingCircle, Upload, X, Clock, Plus, Trash2, Save, Image as ImageIcon,
-  CheckCircle2, AlertCircle, Calendar
+  CheckCircle2, AlertCircle, Calendar, Bike
 } from "lucide-react";
 import { usePopup } from "../../context/PopupContext";
 
@@ -37,9 +37,6 @@ const InputField = ({ icon: Icon, label, value, onChange, placeholder, type = "t
 
 export default function Restuarent() {
   const { showPopup } = usePopup();
-  const API = import.meta.env.VITE_API_URL;
-  const API_BASE = API ? API.replace(/\/api\/?$/i, "") : "";
-  
   const userObj = JSON.parse(localStorage.getItem("user") || "{}");
   const localUserId = userObj.id ? String(userObj.id) : null;
   const isSuperAdmin = Number(userObj.role_id) === 1;
@@ -57,12 +54,15 @@ export default function Restuarent() {
     parking_info: "",
     instore: false,
     kerbside: false,
+    delivery: false,
     latitude: "",
     longitude: "",
     photo: "",
     stripe_secret_key: "",
     stripe_publishable_key: ""
   });
+
+  const [restaurantsList, setRestaurantsList] = useState([]);
 
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -176,6 +176,7 @@ export default function Restuarent() {
       parking_info: info.parking_info || null,
       instore: info.instore ? 1 : 0,
       kerbside: info.kerbside ? 1 : 0,
+      delivery: info.delivery ? 1 : 0,
       latitude: info.latitude || null,
       longitude: info.longitude || null,
       stripe_secret_key: info.stripe_secret_key || null,
@@ -204,6 +205,7 @@ export default function Restuarent() {
       parking_info: restaurant.parking_info ?? "",
       instore: !!restaurant.instore,
       kerbside: !!restaurant.kerbside,
+      delivery: !!restaurant.delivery,
       latitude: restaurant.latitude ?? "",
       longitude: restaurant.longitude ?? "",
       photo: restaurant.restaurant_photo ?? "",
@@ -228,21 +230,21 @@ export default function Restuarent() {
     if (!localUserId) return;
     setLoading(true);
     try {
-      // Super Admin might need a dropdown here, but for now we load their own or the first if they are admin
-      // In the old system, restaurants were linked to user IDs.
-      const docRef = doc(db, "restaurant", localUserId);
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        setRestaurantDocId(docSnap.id);
-        apiToFrontend(docSnap.data());
-      } else if (isSuperAdmin) {
-        // Fallback for Super Admin if they don't have a direct doc
+      if (isSuperAdmin) {
         const res = await getDocs(collection(db, "restaurant"));
         if (!res.empty) {
-          const firstSnap = res.docs[0];
-          setRestaurantDocId(firstSnap.id);
-          apiToFrontend(firstSnap.data());
+          const list = res.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setRestaurantsList(list);
+          const initial = list.find((r) => r.id === localUserId) || list[0];
+          setRestaurantDocId(initial.id);
+          apiToFrontend(initial);
+        }
+      } else {
+        const docRef = doc(db, "restaurant", localUserId);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setRestaurantDocId(docSnap.id);
+          apiToFrontend(docSnap.data());
         }
       }
     } catch (e) {
@@ -276,7 +278,15 @@ export default function Restuarent() {
         setRestaurantDocId(newRef.id);
       }
 
+      const savedId = restaurantDocId || localUserId;
       apiToFrontend(payload);
+
+      // Update in restaurantsList if admin
+      if (isSuperAdmin && savedId) {
+        setRestaurantsList((prev) =>
+          prev.map((r) => (r.id === savedId ? { ...r, ...payload } : r))
+        );
+      }
 
       setPhotoFile(null);
       setPhotoPreview(null);
@@ -307,8 +317,8 @@ export default function Restuarent() {
         <div className="max-w-7xl mx-auto">
 
           {/* Page Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-4 mb-2">
+          <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
               <div className="p-3 bg-white/10 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20">
                 <Store className="text-white" size={28} />
               </div>
@@ -317,6 +327,33 @@ export default function Restuarent() {
                 <p className="text-white/90 mt-1 text-base drop-shadow">Manage your restaurant information and operating hours</p>
               </div>
             </div>
+
+            {isSuperAdmin && restaurantsList.length > 1 && (
+              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/20">
+                <Store className="text-emerald-300" size={18} />
+                <span className="text-sm font-semibold text-white whitespace-nowrap">Location:</span>
+                <select
+                  value={restaurantDocId || ""}
+                  onChange={(e) => {
+                    const selId = e.target.value;
+                    const selRest = restaurantsList.find((r) => r.id === selId);
+                    if (selRest) {
+                      setRestaurantDocId(selId);
+                      apiToFrontend(selRest);
+                      setPhotoFile(null);
+                      setPhotoPreview(null);
+                    }
+                  }}
+                  className="bg-black/30 border border-white/20 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-400 cursor-pointer"
+                >
+                  {restaurantsList.map((r) => (
+                    <option key={r.id} value={r.id} className="bg-gray-800 text-white">
+                      {r.restaurant_name || r.name || `Restaurant (${r.id})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -484,7 +521,7 @@ export default function Restuarent() {
                 </div>
 
                 <div className="p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <label className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer hover:shadow-lg transition-all duration-200 group ${info.instore
                       ? 'bg-emerald-500/20 border-emerald-400/50'
                       : 'bg-white/5 border-white/10 hover:bg-white/10'
@@ -493,13 +530,13 @@ export default function Restuarent() {
                         type="checkbox"
                         checked={info.instore}
                         onChange={(e) => setInfo((p) => ({ ...p, instore: e.target.checked }))}
-                        className="w-5 h-5 text-emerald-500 border-white/30 rounded focus:ring-emerald-500 focus:ring-2 bg-white/10"
+                        className="w-5 h-5 text-emerald-500 border-white/30 rounded focus:ring-emerald-500 focus:ring-2 bg-white/10 cursor-pointer"
                       />
                       <div className="ml-3 flex-1">
                         <span className="block text-sm font-bold text-white">In-Store Pickup</span>
                         <span className="text-xs text-white/50">Customers can pick up orders inside</span>
                       </div>
-                      {info.instore && <CheckCircle2 className="text-emerald-400" size={20} />}
+                      {info.instore && <CheckCircle2 className="text-emerald-400 shrink-0 ml-1" size={20} />}
                     </label>
 
                     <label className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer hover:shadow-lg transition-all duration-200 group ${info.kerbside
@@ -510,13 +547,30 @@ export default function Restuarent() {
                         type="checkbox"
                         checked={info.kerbside}
                         onChange={(e) => setInfo((p) => ({ ...p, kerbside: e.target.checked }))}
-                        className="w-5 h-5 text-emerald-500 border-white/30 rounded focus:ring-emerald-500 focus:ring-2 bg-white/10"
+                        className="w-5 h-5 text-emerald-500 border-white/30 rounded focus:ring-emerald-500 focus:ring-2 bg-white/10 cursor-pointer"
                       />
                       <div className="ml-3 flex-1">
                         <span className="block text-sm font-bold text-white">Kerbside Pickup</span>
                         <span className="text-xs text-white/50">Curbside delivery available</span>
                       </div>
-                      {info.kerbside && <CheckCircle2 className="text-emerald-400" size={20} />}
+                      {info.kerbside && <CheckCircle2 className="text-emerald-400 shrink-0 ml-1" size={20} />}
+                    </label>
+
+                    <label className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer hover:shadow-lg transition-all duration-200 group ${info.delivery
+                      ? 'bg-emerald-500/20 border-emerald-400/50'
+                      : 'bg-white/5 border-white/10 hover:bg-white/10'
+                      }`}>
+                      <input
+                        type="checkbox"
+                        checked={info.delivery}
+                        onChange={(e) => setInfo((p) => ({ ...p, delivery: e.target.checked }))}
+                        className="w-5 h-5 text-emerald-500 border-white/30 rounded focus:ring-emerald-500 focus:ring-2 bg-white/10 cursor-pointer"
+                      />
+                      <div className="ml-3 flex-1">
+                        <span className="block text-sm font-bold text-white">Delivery</span>
+                        <span className="text-xs text-white/50">Home delivery to address</span>
+                      </div>
+                      {info.delivery && <CheckCircle2 className="text-emerald-400 shrink-0 ml-1" size={20} />}
                     </label>
                   </div>
                 </div>
@@ -550,10 +604,10 @@ export default function Restuarent() {
                             </button>
                           </div>
                         </div>
-                      ) : info.photo ? (
+                      ) : (info.photo && !info.photo.includes('api.crispydosa.info') && (info.photo.startsWith('http') || info.photo.startsWith('/'))) ? (
                         <div className="relative w-full h-full">
                           <img
-                            src={info.photo.startsWith('http') ? info.photo : `${API_BASE}/uploads/${info.photo}`}
+                            src={info.photo}
                             className="w-full h-full object-cover"
                             alt="Restaurant"
                             onError={(e) => {

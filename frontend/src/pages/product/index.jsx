@@ -18,13 +18,11 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export default function ProductPage() {
   const { showPopup } = usePopup();
-  const API = import.meta.env.VITE_API_URL;
-  const token = localStorage.getItem("token");
-  
   const getImageUrl = (img) => {
-    if (!img) return null;
-    if (img.startsWith("http")) return img;
-    return `${API}/uploads/${img}`;
+    if (!img || typeof img !== "string") return null;
+    if (img.includes("api.crispydosa.info")) return null;
+    if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("/")) return img;
+    return null;
   };
   
   const userObj = JSON.parse(localStorage.getItem("user") || "{}");
@@ -295,10 +293,10 @@ export default function ProductPage() {
       return URL.createObjectURL(form.image);
     }
     if (form.oldImage) {
-      return form.oldImage.startsWith("http") ? form.oldImage : `${API}/uploads/${form.oldImage}`;
+      return getImageUrl(form.oldImage);
     }
     return null;
-  }, [form.image, form.oldImage, API]);
+  }, [form.image, form.oldImage]);
 
   // revoke objectURL when image file changes or component unmounts
   useEffect(() => {
@@ -833,13 +831,17 @@ export default function ProductPage() {
                                         </td>
 
                                         <td className="px-6 py-4 w-24">
-                                          <div className="h-12 w-12 rounded-lg bg-white/10 border border-white/10 overflow-hidden flex-shrink-0">
-                                            <img
-                                              src={getImageUrl(p.image) || ""}
-                                              className="h-full w-full object-cover"
-                                              alt={p.name}
-                                              onError={(e) => (e.target.style.display = "none")}
-                                            />
+                                          <div className="h-12 w-12 rounded-lg bg-white/10 border border-white/10 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                            {getImageUrl(p.image) ? (
+                                              <img
+                                                src={getImageUrl(p.image)}
+                                                className="h-full w-full object-cover"
+                                                alt={p.name}
+                                                onError={(e) => (e.target.style.display = "none")}
+                                              />
+                                            ) : (
+                                              <ImageIcon size={20} className="text-white/30" />
+                                            )}
                                           </div>
                                         </td>
 
@@ -1417,15 +1419,15 @@ export default function ProductPage() {
                     onClick={() => handleAddGlobalProduct(item)}
                     className="w-full flex items-center gap-4 p-3 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl transition-all text-left group"
                   >
-                    <div className="h-14 w-14 bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-white/10">
-                      {item.image || item.product_image ? (
+                    <div className="h-14 w-14 bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 flex items-center justify-center">
+                      {getImageUrl(item.image || item.product_image) ? (
                         <img
-                          src={getImageUrl(item.image || item.product_image) || ""}
+                          src={getImageUrl(item.image || item.product_image)}
                           className="h-full w-full object-cover"
                           alt=""
                         />
                       ) : (
-                        <div className="h-full w-full flex items-center justify-center text-xs text-white/30">?</div>
+                        <ImageIcon size={20} className="text-white/30" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">

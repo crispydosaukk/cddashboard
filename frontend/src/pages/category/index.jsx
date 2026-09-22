@@ -15,13 +15,11 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export default function Category() {
   const { showPopup } = usePopup();
-  const API = import.meta.env.VITE_API_URL;
-  const token = localStorage.getItem("token");
-  
   const getImageUrl = (img) => {
-    if (!img) return null;
-    if (img.startsWith("http")) return img;
-    return `${API}/uploads/${img}`;
+    if (!img || typeof img !== "string") return null;
+    if (img.includes("api.crispydosa.info")) return null;
+    if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("/")) return img;
+    return null;
   };
   
   const userObj = JSON.parse(localStorage.getItem("user") || "{}");
@@ -716,10 +714,10 @@ export default function Category() {
 
                                     <td className="px-6 py-4">
                                       <div className="flex items-center gap-4">
-                                        <div className="h-14 w-14 rounded-lg overflow-hidden bg-white/10 border border-white/10 shadow-md flex-shrink-0">
-                                          {item.image ? (
+                                        <div className="h-14 w-14 rounded-lg overflow-hidden bg-white/10 border border-white/10 shadow-md flex-shrink-0 flex items-center justify-center">
+                                          {getImageUrl(item.image) ? (
                                             <img
-                                              src={getImageUrl(item.image) || ""}
+                                              src={getImageUrl(item.image)}
                                               className="h-full w-full object-cover"
                                               alt={item.name}
                                             />
@@ -930,9 +928,9 @@ export default function Category() {
                           className="h-full w-full object-cover"
                           alt="Preview"
                         />
-                      ) : form.oldImage ? (
+                      ) : form.oldImage && getImageUrl(form.oldImage) ? (
                         <img
-                          src={`${API_BASE}/uploads/${form.oldImage}`}
+                          src={getImageUrl(form.oldImage)}
                           className="h-full w-full object-cover"
                           alt="Current"
                         />
@@ -1040,10 +1038,10 @@ export default function Category() {
                     onClick={() => handleAddGlobalCategory(game)}
                     className="w-full flex items-center gap-4 p-3 hover:bg-white/10 border border-transparent hover:border-white/10 rounded-xl transition-all text-left group"
                   >
-                    <div className="h-12 w-12 bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-white/10">
-                      {game.image || game.category_image ? (
+                    <div className="h-12 w-12 bg-white/5 rounded-lg overflow-hidden flex-shrink-0 border border-white/10 flex items-center justify-center">
+                      {getImageUrl(game.image || game.category_image) ? (
                         <img
-                          src={getImageUrl(game.image || game.category_image) || ""}
+                          src={getImageUrl(game.image || game.category_image)}
                           className="h-full w-full object-cover"
                           alt=""
                         />

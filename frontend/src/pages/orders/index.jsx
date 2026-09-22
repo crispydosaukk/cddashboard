@@ -7,7 +7,7 @@ import Footer from "../../components/common/footer.jsx";
 import ReadyInModal from "../../components/common/ReadyInModal.jsx";
 import {
   Search, RefreshCw, Filter, Calendar, PoundSterling, User, Truck,
-  MapPin, Phone, Car, Clock, CheckCircle, XCircle, AlertCircle, ShoppingBag, CreditCard, Eye, X
+  MapPin, Phone, Car, Clock, CheckCircle, XCircle, AlertCircle, ShoppingBag, CreditCard, Eye, X, Navigation
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePopup } from "../../context/PopupContext";
@@ -102,8 +102,8 @@ const OrderDetailsModal = ({ order, onClose }) => {
               <div className="space-y-3">
                 <div className="flex justify-between border-b border-white/5 pb-2">
                   <span className="text-white/50 text-sm">Type</span>
-                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${order.instore === 1 ? "bg-blue-500/20 text-blue-300" : "bg-purple-500/20 text-purple-300"}`}>
-                    {order.instore === 1 ? "INSTORE" : "KERBSIDE"}
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${order.order_type === "delivery" ? "bg-emerald-500/20 text-emerald-300" : order.instore === 1 ? "bg-blue-500/20 text-blue-300" : "bg-purple-500/20 text-purple-300"}`}>
+                    {order.order_type === "delivery" ? "DELIVERY" : order.instore === 1 ? "INSTORE" : "KERBSIDE"}
                   </span>
                 </div>
                 <div className="flex justify-between border-b border-white/5 pb-2">
@@ -126,7 +126,7 @@ const OrderDetailsModal = ({ order, onClose }) => {
           </div>
 
           {/* Kerbside Specifics */}
-          {order.instore !== 1 && (
+          {order.instore !== 1 && order.order_type !== "delivery" && (
             <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl">
               <h3 className="text-amber-400 font-bold uppercase text-xs tracking-wider mb-4 flex items-center gap-2">
                 <Car size={14} /> Kerbside Details
@@ -145,6 +145,44 @@ const OrderDetailsModal = ({ order, onClose }) => {
                   <span className="text-white text-lg font-bold">{order.owner_name || "-"}</span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Delivery Address */}
+          {order.order_type === "delivery" && order.delivery_address && (
+            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">
+              <h3 className="text-blue-400 font-bold uppercase text-xs tracking-wider mb-3 flex items-center gap-2">
+                <MapPin size={14} /> Delivery Address
+              </h3>
+              <p className="text-white text-sm leading-relaxed">{order.delivery_address}</p>
+              {order.delivery_coords && (
+                <p className="text-white/30 text-[10px] mt-2 flex items-center gap-1">
+                  <Navigation size={10} /> {order.delivery_coords.lat?.toFixed(5)}, {order.delivery_coords.lng?.toFixed(5)}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Assigned Delivery Partner */}
+          {order.order_type === "delivery" && (
+            <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 p-4 rounded-xl flex items-center justify-between">
+              <div>
+                <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-wider flex items-center gap-2 mb-1">
+                  <Truck size={14} /> Assigned Delivery Partner
+                </h3>
+                {order.delivery_boy_name ? (
+                  <p className="text-white text-sm font-semibold">
+                    {order.delivery_boy_name} {order.delivery_boy_phone ? `(${order.delivery_boy_phone})` : ""}
+                  </p>
+                ) : (
+                  <p className="text-amber-300 text-xs">Unassigned</p>
+                )}
+              </div>
+              {order.delivery_status && (
+                <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold uppercase border border-emerald-500/30">
+                  {order.delivery_status.replace(/_/g, " ")}
+                </span>
+              )}
             </div>
           )}
 
@@ -228,6 +266,7 @@ export default function Orders() {
   const [searchOrder, setSearchOrder] = useState("");
   const [filterPayment, setFilterPayment] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterOrderType, setFilterOrderType] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const location = useLocation();
@@ -354,6 +393,14 @@ export default function Orders() {
       data = data.filter((o) => o.order_status?.toString() === filterStatus);
     }
 
+    if (filterOrderType !== "all") {
+      if (filterOrderType === "delivery") {
+        data = data.filter((o) => o.order_type === "delivery");
+      } else {
+        data = data.filter((o) => o.order_type !== "delivery");
+      }
+    }
+
     if (fromDate) {
       data = data.filter((o) => {
         const orderDate = new Date(o.created_at).setHours(0, 0, 0, 0);
@@ -375,7 +422,7 @@ export default function Orders() {
       setCurrentPage(1);
       return data;
     });
-  }, [searchOrder, filterPayment, filterStatus, fromDate, toDate, orders]);
+  }, [searchOrder, filterPayment, filterStatus, filterOrderType, fromDate, toDate, orders]);
 
   // Group by order_number
   const groupedOrders = useMemo(() => {
@@ -447,7 +494,7 @@ export default function Orders() {
 
           {/* Filters */}
           <div className="bg-white/10 backdrop-blur-xl border border-white/20 p-4 rounded-2xl mb-8 shadow-xl">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={16} />
@@ -457,6 +504,18 @@ export default function Orders() {
                   onChange={(e) => setSearchOrder(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                 />
+              </div>
+              {/* Order Type */}
+              <div className="relative">
+                <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={16} />
+                <select
+                  value={filterOrderType} onChange={(e) => setFilterOrderType(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none"
+                >
+                  <option value="all" className="bg-slate-800">All Types</option>
+                  <option value="takeaway" className="bg-slate-800">Takeaway</option>
+                  <option value="delivery" className="bg-slate-800">Delivery</option>
+                </select>
               </div>
               {/* Payment */}
               <div className="relative">
@@ -540,6 +599,9 @@ export default function Orders() {
                       <div className="flex-1 min-w-0 mr-2">
                         <div className="flex items-center gap-2">
                           <h3 className="text-xl font-bold text-white truncate">{order.order_number}</h3>
+                          {order.order_type === "delivery" && (
+                            <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-blue-500/20 text-blue-300 border border-blue-500/30">🛵 Delivery</span>
+                          )}
                           {autoRefresh && order.order_status === 0 && (
                             <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
                           )}
@@ -610,11 +672,11 @@ export default function Orders() {
                         </div>
                         <div className="flex items-center gap-2 text-white/70">
                           <Truck size={14} className="text-white/40" />
-                          <span>{order.instore === 1 ? "Instore" : "Kerbside"}</span>
+                          <span>{order.order_type === "delivery" ? "Delivery" : order.instore === 1 ? "Instore" : "Kerbside"}</span>
                         </div>
                       </div>
 
-                      {order.instore !== 1 && (
+                      {order.instore !== 1 && order.order_type !== "delivery" && (
                         <div className="pt-2 border-t border-white/10 grid grid-cols-2 gap-2 text-xs">
                           <div className="bg-black/20 p-2 rounded border border-white/5">
                             <span className="block text-white/40 text-[10px] uppercase font-bold tracking-wider mb-0.5">Reg No.</span>
@@ -627,6 +689,16 @@ export default function Orders() {
                           <div className="bg-black/20 p-2 rounded border border-white/5 col-span-2">
                             <span className="block text-white/40 text-[10px] uppercase font-bold tracking-wider mb-0.5">Owner</span>
                             <span className="text-white font-bold">{order.owner_name || "-"}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Delivery address on delivery orders */}
+                      {order.order_type === "delivery" && order.delivery_address && (
+                        <div className="pt-2 border-t border-white/10">
+                          <div className="flex items-start gap-2 text-xs text-blue-300 bg-blue-500/5 p-2 rounded-lg border border-blue-500/10">
+                            <MapPin size={12} className="shrink-0 mt-0.5" />
+                            <span className="line-clamp-2 leading-relaxed">{order.delivery_address}</span>
                           </div>
                         </div>
                       )}

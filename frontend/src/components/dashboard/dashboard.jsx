@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 import {
   ShoppingBag, Users, Store, UserPlus, ArrowUp, ArrowRight, CheckCircle, Clock, Eye, X,
   Calendar, PoundSterling, TrendingUp, CreditCard, ChevronDown, Package,
-  RotateCcw, AlertCircle, Box, Truck, XCircle, Plus, Phone, LayoutDashboard
+  RotateCcw, AlertCircle, Box, Truck, XCircle, Plus, Phone, LayoutDashboard,
+  MapPin, Navigation, Home
 } from "lucide-react";
 import Header from "../common/header.jsx";
 import Sidebar from "../common/sidebar.jsx";
@@ -17,6 +18,14 @@ import DateTimeRangeModal from "../common/DateTimeRangeModal.jsx";
 import { db } from "../../firebase.js";
 import { collection, query, where, getDocs, addDoc, writeBatch } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
+
+// --- Helper for Valid Images (Firebase only, no VPS) ---
+const getValidImageUrl = (img) => {
+  if (!img || typeof img !== "string") return null;
+  if (img.includes("api.crispydosa.info")) return null;
+  if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("/")) return img;
+  return null;
+};
 
 // --- Components ---
 
@@ -156,9 +165,9 @@ const MetricDetailsModal = ({ isOpen, onClose, title, items = [], type, onUpdate
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-4">
                             <div className="w-10 h-10 rounded-xl bg-white/10 overflow-hidden shrink-0 border border-white/10">
-                              {item.image ? (
+                              {getValidImageUrl(item.image) ? (
                                 <img
-                                  src={item.image || ""}
+                                  src={getValidImageUrl(item.image)}
                                   alt=""
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                                 />
@@ -426,9 +435,9 @@ const OrderDetailsModal = ({ order, onClose, onUpdateStatus, onReadyClick }) => 
                         <td className="px-4 py-3 text-white flex items-center gap-3">
                           {/* Optional Image */}
                           <div className="w-8 h-8 rounded bg-white/10 flex items-center justify-center text-xs overflow-hidden">
-                            {item.product_image ? (
+                            {getValidImageUrl(item.product_image) ? (
                               <img
-                                src={item.product_image || ""}
+                                src={getValidImageUrl(item.product_image)}
                                 alt=""
                                 className="w-full h-full object-cover"
                               />
@@ -510,12 +519,7 @@ const OrderDetailsModal = ({ order, onClose, onUpdateStatus, onReadyClick }) => 
 const ProductDetailsModal = ({ product, onClose }) => {
   if (!product) return null;
 
-  const getImageUrl = (image) => {
-    if (!image) return null;
-    const cleanImage = image.replace(/^uploads\//, '');
-    const baseUrl = "";
-    return `${baseUrl}/uploads/${cleanImage}`;
-  };
+  const imgUrl = getValidImageUrl(product.image);
 
   return (
     <motion.div
@@ -533,9 +537,9 @@ const ProductDetailsModal = ({ product, onClose }) => {
         className="bg-[#1a1c23] border border-white/10 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col"
       >
         <div className="relative h-56 w-full bg-white/5">
-          {product.image ? (
+          {imgUrl ? (
             <img
-              src={getImageUrl(product.image)}
+              src={imgUrl}
               alt={product.name}
               className="w-full h-full object-cover"
             />
@@ -605,6 +609,14 @@ const NewOrderModal = ({ isOpen, onClose, onOrderPlaced, initialUserId, restaura
   const [isLoyaltyApplied, setIsLoyaltyApplied] = useState(false);
   const [loyaltyValue, setLoyaltyValue] = useState(0);
 
+  // Delivery / Takeaway state
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [orderType, setOrderType] = useState(null); // null | "takeaway" | "delivery"
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [deliveryCoords, setDeliveryCoords] = useState(null); // { lat, lng }
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState("");
+
   useEffect(() => {
     if (isOpen) {
       resetModal();
@@ -650,6 +662,11 @@ const NewOrderModal = ({ isOpen, onClose, onOrderPlaced, initialUserId, restaura
     setSuccessOrderNumber("");
     setIsLoyaltyApplied(false);
     setLoyaltyValue(0);
+    setShowDeliveryModal(false);
+    setOrderType(null);
+    setDeliveryAddress("");
+    setDeliveryCoords(null);
+    setLocationError("");
   };
 
   const fetchCategories = async () => {
@@ -756,27 +773,67 @@ const NewOrderModal = ({ isOpen, onClose, onOrderPlaced, initialUserId, restaura
     setCart(cart.filter(item => item.product_id !== pid));
   };
 
-  const placeOrder = async () => {
+  // Fetch current location and reverse geocode via OpenStreetMap Nominatim
+  const fetchCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser.");
+      return;
+    }
+    setLocationLoading(true);
+    setLocationError("");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setDeliveryCoords({ lat: latitude, lng: longitude });
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            { headers: { "Accept-Language": "en" } }
+          );
+          const data = await res.json();
+          setDeliveryAddress(data.display_name || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+        } catch {
+          setDeliveryAddress(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+        }
+        setLocationLoading(false);
+      },
+      (err) => {
+        setLocationError("Could not get location. Please enter address manually.");
+        setLocationLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const placeOrder = async (chosenType) => {
     if (cart.length === 0) return;
+    const type = chosenType || orderType || "takeaway";
     setLoading(true);
+    setShowDeliveryModal(false);
     try {
       const orderNumber = "ORD" + Date.now().toString().slice(-6);
-      
+
       const orderDoc = {
         order_number: orderNumber,
         customer_id: customer.id,
         payment_mode: 0, // COD
-        instore: 1, // Default to Instore for Dashboard orders
+        instore: type === "delivery" ? 0 : 1,
+        order_type: type, // "takeaway" | "delivery"
         items: cart,
         order_source: 'Dashboard',
-        user_id: localUserId, // Ensure order is linked to correct restaurant
+        user_id: localUserId,
         loyalty_used: loyaltyValue,
         order_status: 0,
         created_at: new Date().toISOString(),
         grand_total: cart.reduce((acc, c) => acc + (c.price * c.quantity), 0) - loyaltyValue,
-        customer_name: customer.full_name || customer.customer_name || ""
+        customer_name: customer.full_name || customer.customer_name || "",
+        mobile_number: customer.mobile_number || customer.phone || "",
+        ...(type === "delivery" && {
+          delivery_address: deliveryAddress,
+          delivery_coords: deliveryCoords,
+        }),
       };
-      
+
       await addDoc(collection(db, "orders"), orderDoc);
 
       setIsSuccess(true);
@@ -787,6 +844,15 @@ const NewOrderModal = ({ isOpen, onClose, onOrderPlaced, initialUserId, restaura
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleConfirmOrderClick = () => {
+    if (cart.length === 0) return;
+    setShowDeliveryModal(true);
+    setOrderType(null);
+    setDeliveryAddress("");
+    setDeliveryCoords(null);
+    setLocationError("");
   };
 
   if (!isOpen) return null;
@@ -968,8 +1034,8 @@ const NewOrderModal = ({ isOpen, onClose, onOrderPlaced, initialUserId, restaura
                             >
                               <div className="flex gap-3">
                                 <div className="w-16 h-16 rounded-xl bg-white/5 overflow-hidden flex-shrink-0 border border-white/10 group-hover:border-white/20 transition-all">
-                                  {p.image ? (
-                                    <img src={p.image} alt={p.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                  {getValidImageUrl(p.image) ? (
+                                    <img src={getValidImageUrl(p.image)} alt={p.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
                                   ) : (
                                     <ShoppingBag size={24} className="m-auto mt-4 text-white/10" />
                                   )}
@@ -1086,7 +1152,7 @@ const NewOrderModal = ({ isOpen, onClose, onOrderPlaced, initialUserId, restaura
                   </div>
                   {error && <p className="text-rose-400 text-[10px] font-bold bg-rose-500/10 p-2 rounded-lg border border-rose-500/20 text-center">{error}</p>}
                   <button
-                    onClick={placeOrder}
+                    onClick={handleConfirmOrderClick}
                     disabled={cart.length === 0 || loading}
                     className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-900/40 active:scale-95"
                   >
@@ -1098,6 +1164,154 @@ const NewOrderModal = ({ isOpen, onClose, onOrderPlaced, initialUserId, restaura
           )}
         </div>
       </motion.div>
+
+      {/* ───── Delivery / Takeaway Selection Modal ───── */}
+      <AnimatePresence>
+        {showDeliveryModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md z-[200] flex items-center justify-center p-4"
+            onClick={() => setShowDeliveryModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 30 }}
+              transition={{ type: "spring", stiffness: 300, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#12141a] border border-white/10 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-emerald-900/80 to-teal-900/80 px-6 py-5 border-b border-white/10 flex items-center justify-between">
+                <div>
+                  <h3 className="text-white font-black text-lg uppercase tracking-wider flex items-center gap-2">
+                    <Truck size={20} className="text-emerald-400" /> Order Type
+                  </h3>
+                  <p className="text-white/50 text-xs mt-1">How would you like to receive your order?</p>
+                </div>
+                <button
+                  onClick={() => setShowDeliveryModal(false)}
+                  className="p-2 bg-white/5 hover:bg-white/15 rounded-xl text-white/60 hover:text-white transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {orderType !== "delivery" ? (
+                  <>
+                    {/* Choice Cards */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Takeaway */}
+                      <button
+                        onClick={() => {
+                          setOrderType("takeaway");
+                          placeOrder("takeaway");
+                        }}
+                        disabled={loading}
+                        className="group flex flex-col items-center gap-4 p-6 bg-white/5 hover:bg-emerald-500/10 border border-white/10 hover:border-emerald-500/40 rounded-2xl transition-all active:scale-95"
+                      >
+                        <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <ShoppingBag size={28} className="text-emerald-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-white font-black text-sm uppercase tracking-wider">Takeaway</p>
+                          <p className="text-white/40 text-[10px] mt-1">Pick up at counter</p>
+                        </div>
+                      </button>
+
+                      {/* Delivery */}
+                      <button
+                        onClick={() => setOrderType("delivery")}
+                        disabled={loading}
+                        className="group flex flex-col items-center gap-4 p-6 bg-white/5 hover:bg-blue-500/10 border border-white/10 hover:border-blue-500/40 rounded-2xl transition-all active:scale-95"
+                      >
+                        <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Truck size={28} className="text-blue-400" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-white font-black text-sm uppercase tracking-wider">Delivery</p>
+                          <p className="text-white/40 text-[10px] mt-1">Deliver to address</p>
+                        </div>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  /* Delivery Address Form */
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="space-y-4"
+                  >
+                    <button
+                      onClick={() => setOrderType(null)}
+                      className="flex items-center gap-2 text-white/50 hover:text-white text-xs font-bold uppercase tracking-wider transition-colors"
+                    >
+                      <ArrowRight size={14} className="rotate-180" /> Back
+                    </button>
+
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4">
+                      <h4 className="text-blue-300 font-black text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <MapPin size={14} /> Delivery Address
+                      </h4>
+
+                      {/* Use My Location Button */}
+                      <button
+                        onClick={fetchCurrentLocation}
+                        disabled={locationLoading}
+                        className="w-full flex items-center justify-center gap-2 py-3 mb-3 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/30 rounded-xl text-blue-300 font-bold text-sm transition-all active:scale-95 disabled:opacity-60"
+                      >
+                        {locationLoading ? (
+                          <><div className="w-4 h-4 border-2 border-blue-400/40 border-t-blue-400 rounded-full animate-spin" /> Fetching location...</>
+                        ) : (
+                          <><Navigation size={16} /> Use My Current Location</>
+                        )}
+                      </button>
+
+                      {locationError && (
+                        <p className="text-rose-400 text-xs bg-rose-500/10 border border-rose-500/20 p-2 rounded-lg mb-3">{locationError}</p>
+                      )}
+
+                      {/* Address Text Input */}
+                      <div className="relative">
+                        <Home className="absolute left-3 top-3.5 text-white/30" size={16} />
+                        <textarea
+                          value={deliveryAddress}
+                          onChange={(e) => setDeliveryAddress(e.target.value)}
+                          placeholder="Enter full delivery address..."
+                          rows={3}
+                          className="w-full bg-white/5 border border-white/10 focus:border-blue-500/50 rounded-xl pl-9 pr-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"
+                        />
+                      </div>
+
+                      {deliveryCoords && (
+                        <p className="text-white/30 text-[10px] mt-2 flex items-center gap-1">
+                          <MapPin size={10} /> {deliveryCoords.lat.toFixed(5)}, {deliveryCoords.lng.toFixed(5)}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Place Delivery Order */}
+                    <button
+                      onClick={() => placeOrder("delivery")}
+                      disabled={!deliveryAddress.trim() || loading}
+                      className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-blue-900/40 active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      {loading ? (
+                        <><div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Placing...</>
+                      ) : (
+                        <><Truck size={18} /> Place Delivery Order</>
+                      )}
+                    </button>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div >
   );
 };
@@ -1838,9 +2052,9 @@ export default function Dashboard() {
                             {idx + 1}
                           </div>
                           <div className="w-12 h-12 rounded-lg bg-white/10 overflow-hidden ring-1 ring-white/10">
-                            {product.image ? (
+                            {getValidImageUrl(product.image) ? (
                               <img
-                                src={product.image || ""}
+                                src={getValidImageUrl(product.image)}
                                 alt=""
                                 className="w-full h-full object-cover"
                               />

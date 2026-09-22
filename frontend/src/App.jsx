@@ -15,6 +15,8 @@ import Migration from "./pages/migration/index.jsx"; // ← NEW
 import CustomerDetails from "./pages/customerdetails/index.jsx";
 import PrivacyPolicy from "./pages/privacy-policy/index.jsx";
 import DeleteAccount from "./pages/delete-account/index.jsx";
+import DeliveryOrders from "./pages/deliveryorders/index.jsx";
+import DeliveryPartners from "./pages/deliverypartners/index.jsx";
 import { PopupProvider } from "./context/PopupContext";
 
 function PrivateRoute({ children }) {
@@ -131,6 +133,28 @@ export default function App() {
               <PrivateRoute>
                 <RequirePerm perm="order_management">
                   <Orders />
+                </RequirePerm>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/delivery-orders"
+            element={
+              <PrivateRoute>
+                <RequirePerm perm="order_management">
+                  <DeliveryOrders />
+                </RequirePerm>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/delivery-partners"
+            element={
+              <PrivateRoute>
+                <RequirePerm perm="order_management">
+                  <DeliveryPartners />
                 </RequirePerm>
               </PrivateRoute>
             }

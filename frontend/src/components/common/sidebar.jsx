@@ -93,6 +93,8 @@ export default function Sidebar({ open, onClose }) {
       { label: "Customer Details", to: "/customerdetails", icon: iconCustomerDetails(), perm: "customer_details" },
       { label: "Settings", to: "/settings", icon: iconSettings(), perm: "settings" },
       { label: "Order Management", to: "/orders", icon: iconOrders(), perm: "order_management" },
+      { label: "Delivery Orders", to: "/delivery-orders", icon: iconTruck(), perm: "order_management" },
+      { label: "Delivery Partners", to: "/delivery-partners", icon: iconBike(), perm: "order_management" },
     ],
     []
   );
@@ -368,6 +370,22 @@ function iconOrders() {
   );
 }
 
+function iconTruck() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
+      <path
+        d="M1 3h13v13H1zM14 8h4l3 3v5h-7V8z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="5.5" cy="18.5" r="1.5" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="18.5" cy="18.5" r="1.5" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
 function iconSettings() {
   return (
     <svg viewBox="0 0 24 24" fill="none" className="w-full h-full">
@@ -402,3 +420,14 @@ function iconCustomerDetails() {
     </svg>
   );
 }
+
+function iconBike() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="5.5" cy="17.5" r="3.5" />
+      <circle cx="18.5" cy="17.5" r="3.5" />
+      <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h4" />
+    </svg>
+  );
+}
+
