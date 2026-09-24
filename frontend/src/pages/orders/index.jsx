@@ -121,6 +121,15 @@ const OrderDetailsModal = ({ order, onClose }) => {
                     )}
                   </div>
                 </div>
+                {order.delivery_fee !== undefined && order.delivery_fee !== null && (
+                  <div className="flex justify-between border-t border-white/5 pt-2">
+                    <span className="text-white/50 text-sm">Delivery Fee</span>
+                    <span className="text-emerald-400 font-bold">
+                      {Number(order.delivery_fee) === 0 ? "FREE" : `£${safeNumber(order.delivery_fee).toFixed(2)}`}
+                      {order.delivery_distance ? ` (${order.delivery_distance} mi)` : ""}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -55,6 +55,12 @@ export default function Restuarent() {
     instore: false,
     kerbside: false,
     delivery: false,
+    base_delivery_fee: "",
+    base_delivery_distance: "",
+    extra_fee_per_mile: "",
+    max_delivery_radius: "",
+    min_order_delivery: "",
+    free_delivery_above: "",
     latitude: "",
     longitude: "",
     photo: "",
@@ -177,6 +183,12 @@ export default function Restuarent() {
       instore: info.instore ? 1 : 0,
       kerbside: info.kerbside ? 1 : 0,
       delivery: info.delivery ? 1 : 0,
+      base_delivery_fee: info.base_delivery_fee !== "" ? Number(info.base_delivery_fee) : 0,
+      base_delivery_distance: info.base_delivery_distance !== "" ? Number(info.base_delivery_distance) : 0,
+      extra_fee_per_mile: info.extra_fee_per_mile !== "" ? Number(info.extra_fee_per_mile) : 0,
+      max_delivery_radius: info.max_delivery_radius !== "" ? Number(info.max_delivery_radius) : 0,
+      min_order_delivery: info.min_order_delivery !== "" ? Number(info.min_order_delivery) : 0,
+      free_delivery_above: info.free_delivery_above !== "" ? Number(info.free_delivery_above) : 0,
       latitude: info.latitude || null,
       longitude: info.longitude || null,
       stripe_secret_key: info.stripe_secret_key || null,
@@ -206,6 +218,12 @@ export default function Restuarent() {
       instore: !!restaurant.instore,
       kerbside: !!restaurant.kerbside,
       delivery: !!restaurant.delivery,
+      base_delivery_fee: restaurant.base_delivery_fee ?? "",
+      base_delivery_distance: restaurant.base_delivery_distance ?? "",
+      extra_fee_per_mile: restaurant.extra_fee_per_mile ?? "",
+      max_delivery_radius: restaurant.max_delivery_radius ?? "",
+      min_order_delivery: restaurant.min_order_delivery ?? "",
+      free_delivery_above: restaurant.free_delivery_above ?? "",
       latitude: restaurant.latitude ?? "",
       longitude: restaurant.longitude ?? "",
       photo: restaurant.restaurant_photo ?? "",
@@ -575,6 +593,96 @@ export default function Restuarent() {
                   </div>
                 </div>
               </div>
+
+              {/* Distance-Based Delivery Pricing Card */}
+              {info.delivery && (
+                <div className="bg-white/10 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+                  <div className="bg-white/10 backdrop-blur-md px-6 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-emerald-500/20 rounded-lg border border-emerald-500/30">
+                        <Bike className="text-emerald-400" size={20} />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-white drop-shadow-lg">
+                          Distance-Based Delivery Pricing
+                        </h2>
+                        <p className="text-xs text-white/60">
+                          Configure dynamic delivery charges calculated from your restaurant location to customer's address
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                      <InputField
+                        label="Base Delivery Fee (£)"
+                        type="number"
+                        step="0.01"
+                        value={info.base_delivery_fee}
+                        onChange={onInfoChange("base_delivery_fee")}
+                        placeholder="e.g. 2.50"
+                      />
+                      <InputField
+                        label="Base Distance (Miles)"
+                        type="number"
+                        step="0.1"
+                        value={info.base_delivery_distance}
+                        onChange={onInfoChange("base_delivery_distance")}
+                        placeholder="e.g. 2.0"
+                      />
+                      <InputField
+                        label="Extra Fee Per Mile (£)"
+                        type="number"
+                        step="0.01"
+                        value={info.extra_fee_per_mile}
+                        onChange={onInfoChange("extra_fee_per_mile")}
+                        placeholder="e.g. 1.00"
+                      />
+                      <InputField
+                        label="Max Delivery Radius (Miles)"
+                        type="number"
+                        step="0.1"
+                        value={info.max_delivery_radius}
+                        onChange={onInfoChange("max_delivery_radius")}
+                        placeholder="e.g. 8.0"
+                      />
+                      <InputField
+                        label="Min Order Amount (£)"
+                        type="number"
+                        step="0.01"
+                        value={info.min_order_delivery}
+                        onChange={onInfoChange("min_order_delivery")}
+                        placeholder="e.g. 15.00"
+                      />
+                      <InputField
+                        label="Free Delivery Above (£)"
+                        type="number"
+                        step="0.01"
+                        value={info.free_delivery_above}
+                        onChange={onInfoChange("free_delivery_above")}
+                        placeholder="e.g. 40.00"
+                      />
+                    </div>
+
+                    {/* Live Calculation Preview Banner */}
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="text-sm">
+                        <span className="font-bold text-emerald-300">💡 Calculation rule: </span>
+                        <span className="text-white/80">
+                          Deliveries within {Number(info.base_delivery_distance) || 0} mi charged flat £{(Number(info.base_delivery_fee) || 0).toFixed(2)}. Each extra mile adds +£{(Number(info.extra_fee_per_mile) || 0).toFixed(2)}.
+                          {Number(info.max_delivery_radius) > 0 && ` Out of range beyond ${info.max_delivery_radius} mi.`}
+                        </span>
+                      </div>
+                      {Number(info.free_delivery_above) > 0 && (
+                        <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30 text-xs font-bold whitespace-nowrap">
+                          Free delivery over £{Number(info.free_delivery_above).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Sidebar */}

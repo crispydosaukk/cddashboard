@@ -14,9 +14,14 @@ import {
 } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { getUser } from "../../utils/perm.js";
 
 export default function DeliveryPartners() {
   const { showPopup } = usePopup();
+  const user = getUser();
+  const currentRestaurantId = user?.id ? String(user.id) : null;
+  const currentRestaurantName = user?.name || "My Restaurant";
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Table state
@@ -56,12 +61,18 @@ export default function DeliveryPartners() {
     setRevealedPasswords((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Fetch Delivery Partners
+  // Fetch Delivery Partners (Only for this specific restaurant)
   const fetchPartners = async () => {
     try {
       setLoading(true);
       const res = await getDocs(collection(db, "delivery_partners"));
-      const list = res.docs.map((d) => ({ id: d.id, ...d.data() }));
+      let list = res.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      // Strictly isolate: only show delivery partners created for this restaurant
+      if (currentRestaurantId) {
+        list = list.filter((p) => String(p.restaurant_id) === String(currentRestaurantId));
+      }
+
       setPartners(list);
       setError("");
     } catch (e) {
@@ -73,7 +84,7 @@ export default function DeliveryPartners() {
 
   useEffect(() => {
     fetchPartners();
-  }, []);
+  }, [currentRestaurantId]);
 
   // Stats
   const activeCount = useMemo(() => partners.filter((p) => Number(p.status) === 1).length, [partners]);
@@ -119,7 +130,7 @@ export default function DeliveryPartners() {
       const uid = userCred.user.uid;
       await secondaryAuth.signOut();
 
-      // 2. Save in Firestore delivery_partners
+      // 2. Save in Firestore delivery_partners under this restaurant
       await addDoc(collection(db, "delivery_partners"), {
         uid: uid,
         name: cName.trim(),
@@ -128,6 +139,8 @@ export default function DeliveryPartners() {
         mobile_number: cPhone.trim(),
         phone: cPhone.trim(),
         vehicle_type: cVehicle,
+        restaurant_id: currentRestaurantId,
+        restaurant_name: currentRestaurantName,
         status: 1, // 1 = Active, 0 = Inactive
         created_at: new Date().toISOString(),
       });
@@ -334,17 +347,17 @@ export default function DeliveryPartners() {
             <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
               {/* Search Toolbar */}
               <div className="p-4 border-b border-white/10 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white/5">
-                <div className="relative w-full sm:w-96">
+                <div className="relative w-full sm:w-80">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" size={18} />
                   <input
                     type="text"
-                    placeholder="Search by name, email, phone, vehicle..."
+                    placeholder="Search by name, email, phone..."
                     value={q}
                     onChange={(e) => { setQ(e.target.value); setPage(1); }}
                     className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all text-sm"
                   />
                 </div>
-                <div className="text-white/60 text-sm font-medium self-end sm:self-auto">
+                <div className="text-white/60 text-sm font-medium self-end sm:self-auto whitespace-nowrap">
                   Showing {paged.length} of {total} partners
                 </div>
               </div>
@@ -558,6 +571,8 @@ export default function DeliveryPartners() {
               </div>
 
               <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+
+
                 <div>
                   <label className="text-xs text-white/80 font-medium block mb-1.5">Partner Full Name</label>
                   <input
@@ -681,6 +696,7 @@ export default function DeliveryPartners() {
               </div>
 
               <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+
                 <div>
                   <label className="text-xs text-white/80 font-medium block mb-1.5">Partner Name</label>
                   <input

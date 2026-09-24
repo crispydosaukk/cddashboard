@@ -70,8 +70,12 @@ const DeliveryOrderDetailsModal = ({ order, onClose, partners, onAssignPartner }
               <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-wider mb-4 flex items-center gap-2"><Truck size={14} /> Order Info</h3>
               <div className="space-y-3">
                 <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-white/50 text-sm">Type</span><span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-300">DELIVERY</span></div>
+                <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-white/50 text-sm">Type</span><span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-500/20 text-blue-300">DELIVERY</span></div>
                 <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-white/50 text-sm">Payment</span><span className="text-white font-medium">{order.payment_mode === 0 ? "COD" : "Online"}</span></div>
-                <div className="flex justify-between items-center"><span className="text-white/50 text-sm">Status</span><span className={`font-bold ${statusInfo.color}`}>{statusInfo.text}</span></div>
+                <div className="flex justify-between border-b border-white/5 pb-2"><span className="text-white/50 text-sm">Status</span><span className={`font-bold ${statusInfo.color}`}>{statusInfo.text}</span></div>
+                {order.delivery_fee !== undefined && order.delivery_fee !== null && (
+                  <div className="flex justify-between"><span className="text-white/50 text-sm">Delivery Fee</span><span className="text-emerald-400 font-bold">{Number(order.delivery_fee) === 0 ? "FREE" : `£${safeNumber(order.delivery_fee).toFixed(2)}`}{order.delivery_distance ? ` (${order.delivery_distance} mi)` : ""}</span></div>
+                )}
               </div>
             </div>
           </div>
@@ -126,8 +130,10 @@ const DeliveryOrderDetailsModal = ({ order, onClose, partners, onAssignPartner }
                       defaultValue=""
                     >
                       <option value="" disabled>Select delivery partner...</option>
-                      {partners.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.mobile_number || p.email})</option>
+                      {partners
+                        .filter(p => !order.user_id || !p.restaurant_id || String(p.restaurant_id) === String(order.user_id))
+                        .map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.mobile_number || p.email})</option>
                       ))}
                     </select>
                     <button
@@ -223,7 +229,12 @@ export default function DeliveryOrders() {
     try {
       const snap = await getDocs(collection(db, "delivery_partners"));
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setPartners(list.filter(p => p.status === 1));
+      const activeList = list.filter(p => Number(p.status) === 1);
+      if (isSuperAdmin) {
+        setPartners(activeList);
+      } else {
+        setPartners(activeList.filter(p => String(p.restaurant_id) === String(localUserId)));
+      }
     } catch (e) {
       console.log("Failed to load delivery partners:", e);
     }
@@ -508,8 +519,10 @@ export default function DeliveryOrders() {
                         className="bg-slate-900 text-white/80 text-[11px] rounded-lg px-2 py-1 border border-white/20 focus:outline-none"
                       >
                         <option value="" disabled>Assign...</option>
-                        {partners.map(p => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                        {partners
+                          .filter(p => !order.user_id || !p.restaurant_id || String(p.restaurant_id) === String(order.user_id))
+                          .map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
                       </select>
                     )}
