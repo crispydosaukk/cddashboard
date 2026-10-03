@@ -157,15 +157,60 @@ const OrderDetailsModal = ({ order, onClose }) => {
             </div>
           )}
 
-          {/* Delivery Address */}
-          {order.order_type === "delivery" && order.delivery_address && (
-            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">
-              <h3 className="text-blue-400 font-bold uppercase text-xs tracking-wider mb-3 flex items-center gap-2">
-                <MapPin size={14} /> Delivery Address
-              </h3>
-              <p className="text-white text-sm leading-relaxed">{order.delivery_address}</p>
+          {/* Delivery Address (Swiggy / Zomato style breakdown) */}
+          {(order.order_type === "delivery" || order.delivery_address) && (
+            <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl space-y-3">
+              <div className="flex items-center justify-between border-b border-blue-500/20 pb-2">
+                <h3 className="text-blue-400 font-bold uppercase text-xs tracking-wider flex items-center gap-2">
+                  <MapPin size={14} /> Delivery Address Details
+                </h3>
+                {(order.postcode || order.pincode) && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                    PIN: {order.postcode || order.pincode}
+                  </span>
+                )}
+              </div>
+
+              {(order.house_flat_no || order.street_landmark || order.city) ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="bg-black/20 p-2.5 rounded-lg border border-white/5">
+                    <span className="block text-white/40 text-[9px] uppercase font-bold tracking-wider mb-0.5">House / Flat / Floor</span>
+                    <span className="text-white font-bold text-sm">{order.house_flat_no || "-"}</span>
+                  </div>
+                  <div className="bg-black/20 p-2.5 rounded-lg border border-white/5">
+                    <span className="block text-white/40 text-[9px] uppercase font-bold tracking-wider mb-0.5">Street / Area / Landmark</span>
+                    <span className="text-white font-medium">{order.street_landmark || "-"}</span>
+                  </div>
+                  <div className="bg-black/20 p-2.5 rounded-lg border border-white/5">
+                    <span className="block text-white/40 text-[9px] uppercase font-bold tracking-wider mb-0.5">City / Town</span>
+                    <span className="text-white font-medium">{order.city || "-"}</span>
+                  </div>
+                  <div className="bg-black/20 p-2.5 rounded-lg border border-white/5">
+                    <span className="block text-white/40 text-[9px] uppercase font-bold tracking-wider mb-0.5">Postcode / Pincode</span>
+                    <span className="text-emerald-400 font-bold text-sm">{order.postcode || order.pincode || "-"}</span>
+                  </div>
+                </div>
+              ) : null}
+
+              {order.delivery_address && (
+                <div className="text-xs text-white/80 bg-white/5 p-2.5 rounded-lg leading-relaxed">
+                  <span className="text-white/40 font-bold uppercase text-[9px] block mb-0.5">Full Address:</span>
+                  {order.delivery_address}
+                </div>
+              )}
+
+              {order.delivery_instructions && (
+                <div className="bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg flex items-start gap-2 text-xs text-amber-300">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5 text-amber-400" />
+                  <div>
+                    <span className="font-bold uppercase text-[10px] tracking-wider block text-amber-400">Rider Delivery Note:</span>
+                    <span>{order.delivery_instructions}</span>
+                  </div>
+                </div>
+              )}
+
               {order.delivery_coords && (
-                <p className="text-white/30 text-[10px] mt-2 flex items-center gap-1">
+                <p className="text-white/30 text-[10px] flex items-center gap-1">
                   <Navigation size={10} /> {order.delivery_coords.lat?.toFixed(5)}, {order.delivery_coords.lng?.toFixed(5)}
                 </p>
               )}
@@ -703,12 +748,28 @@ export default function Orders() {
                       )}
 
                       {/* Delivery address on delivery orders */}
-                      {order.order_type === "delivery" && order.delivery_address && (
-                        <div className="pt-2 border-t border-white/10">
-                          <div className="flex items-start gap-2 text-xs text-blue-300 bg-blue-500/5 p-2 rounded-lg border border-blue-500/10">
-                            <MapPin size={12} className="shrink-0 mt-0.5" />
-                            <span className="line-clamp-2 leading-relaxed">{order.delivery_address}</span>
+                      {(order.order_type === "delivery" || order.delivery_address) && (
+                        <div className="pt-2 border-t border-white/10 space-y-1.5">
+                          <div className="flex items-start gap-2 text-xs text-blue-300 bg-blue-500/5 p-2.5 rounded-lg border border-blue-500/10">
+                            <MapPin size={14} className="shrink-0 mt-0.5 text-blue-400" />
+                            <div className="flex-1 min-w-0">
+                              {order.house_flat_no && (
+                                <span className="font-bold text-white block text-xs">
+                                  🏠 {order.house_flat_no}
+                                  {(order.postcode || order.pincode) && ` (${order.postcode || order.pincode})`}
+                                </span>
+                              )}
+                              <span className="line-clamp-2 leading-relaxed text-blue-200/90 text-[11px]">
+                                {order.street_landmark ? `${order.street_landmark}${order.city ? `, ${order.city}` : ''}` : order.delivery_address}
+                              </span>
+                            </div>
                           </div>
+                          {order.delivery_instructions && (
+                            <div className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-md flex items-center gap-1.5">
+                              <span className="font-bold uppercase text-[9px] text-amber-400">Rider Note:</span>
+                              <span className="truncate">{order.delivery_instructions}</span>
+                            </div>
+                          )}
                         </div>
                       )}
 
