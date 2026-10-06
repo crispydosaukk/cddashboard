@@ -539,7 +539,7 @@ export default function Restuarent() {
                 </div>
 
                 <div className="p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <label className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer hover:shadow-lg transition-all duration-200 group ${info.instore
                       ? 'bg-emerald-500/20 border-emerald-400/50'
                       : 'bg-white/5 border-white/10 hover:bg-white/10'
@@ -557,6 +557,7 @@ export default function Restuarent() {
                       {info.instore && <CheckCircle2 className="text-emerald-400 shrink-0 ml-1" size={20} />}
                     </label>
 
+                    {/* Kerbside Pickup Option - Commented Out
                     <label className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer hover:shadow-lg transition-all duration-200 group ${info.kerbside
                       ? 'bg-emerald-500/20 border-emerald-400/50'
                       : 'bg-white/5 border-white/10 hover:bg-white/10'
@@ -573,6 +574,7 @@ export default function Restuarent() {
                       </div>
                       {info.kerbside && <CheckCircle2 className="text-emerald-400 shrink-0 ml-1" size={20} />}
                     </label>
+                    */}
 
                     <label className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer hover:shadow-lg transition-all duration-200 group ${info.delivery
                       ? 'bg-emerald-500/20 border-emerald-400/50'
