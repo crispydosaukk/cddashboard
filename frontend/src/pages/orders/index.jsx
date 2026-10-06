@@ -6,7 +6,7 @@ import Footer from "../../components/common/footer.jsx";
 
 import ReadyInModal from "../../components/common/ReadyInModal.jsx";
 import {
-  Search, RefreshCw, Filter, Calendar, PoundSterling, User, Truck,
+  Search, RefreshCw, Filter, Calendar, PoundSterling, User, Truck, Bike,
   MapPin, Phone, Car, Clock, CheckCircle, XCircle, AlertCircle, ShoppingBag, CreditCard, Eye, X, Navigation
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,23 +19,195 @@ function safeNumber(value) {
   return isNaN(n) ? 0 : n;
 }
 
-const statusConfig = (status) => {
-  switch (status) {
-    case 0: return { text: "Placed", color: "text-amber-300", bg: "bg-amber-500/20", border: "border-amber-500/30", icon: AlertCircle };
-    case 1: return { text: "Accepted", color: "text-blue-300", bg: "bg-blue-500/20", border: "border-blue-500/30", icon: Clock };
-    case 2: return { text: "Rejected", color: "text-red-300", bg: "bg-red-500/20", border: "border-red-500/30", icon: XCircle };
-    case 3: return { text: "Ready", color: "text-purple-300", bg: "bg-purple-500/20", border: "border-purple-500/30", icon: ShoppingBag };
-    case 4: return { text: "Collected", color: "text-emerald-300", bg: "bg-emerald-500/20", border: "border-emerald-500/30", icon: CheckCircle };
-    case 5: return { text: "Cancelled", color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", icon: XCircle };
-    default: return { text: "Unknown", color: "text-gray-400", bg: "bg-gray-500/20", border: "border-gray-500/30", icon: AlertCircle };
+const statusConfig = (orderOrStatus, deliveryStatus = null) => {
+  let order = {};
+  if (typeof orderOrStatus === "object" && orderOrStatus !== null) {
+    order = orderOrStatus;
+  } else {
+    order = { order_status: orderOrStatus, delivery_status: deliveryStatus };
+  }
+
+  const dStatus = String(order.delivery_status || "").toLowerCase().trim();
+  if (dStatus === "delivered" || dStatus === "completed") {
+    return {
+      code: 4,
+      text: order.order_type === "delivery" ? "Delivered" : "Collected",
+      color: "text-emerald-300",
+      bg: "bg-emerald-500/20",
+      border: "border-emerald-500/30",
+      icon: CheckCircle
+    };
+  }
+
+  let raw = order.order_status !== undefined && order.order_status !== null ? order.order_status : order.status;
+  let code = null;
+  if (raw !== undefined && raw !== null && raw !== "" && !isNaN(Number(raw))) {
+    code = Number(raw);
+  } else if (typeof raw === "string") {
+    const s = raw.toLowerCase().trim();
+    if (s === "placed" || s === "pending" || s === "new") code = 0;
+    else if (s === "accepted" || s === "confirmed" || s === "processing") code = 1;
+    else if (s === "rejected") code = 2;
+    else if (s === "ready" || s === "food_ready" || s === "prepared") code = 3;
+    else if (s === "delivered" || s === "collected" || s === "completed") code = 4;
+    else if (s === "cancelled" || s === "canceled") code = 5;
+  }
+
+  if (code === null || isNaN(code)) {
+    if (dStatus === "out_for_delivery" || dStatus === "on_the_way" || dStatus === "picked_up") code = 3;
+    else if (dStatus === "accepted" || dStatus === "assigned") code = 1;
+    else if (dStatus === "unassigned") code = 0;
+    else code = 0;
+  }
+
+  switch (code) {
+    case 0: return { code: 0, text: "Placed", color: "text-amber-300", bg: "bg-amber-500/20", border: "border-amber-500/30", icon: AlertCircle };
+    case 1: return { code: 1, text: "Accepted", color: "text-blue-300", bg: "bg-blue-500/20", border: "border-blue-500/30", icon: Clock };
+    case 2: return { code: 2, text: "Rejected", color: "text-red-300", bg: "bg-red-500/20", border: "border-red-500/30", icon: XCircle };
+    case 3: return { code: 3, text: "Ready", color: "text-purple-300", bg: "bg-purple-500/20", border: "border-purple-500/30", icon: ShoppingBag };
+    case 4: return { code: 4, text: order.order_type === "delivery" ? "Delivered" : "Collected", color: "text-emerald-300", bg: "bg-emerald-500/20", border: "border-emerald-500/30", icon: CheckCircle };
+    case 5: return { code: 5, text: "Cancelled", color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", icon: XCircle };
+    default: return { code: 0, text: "Placed", color: "text-amber-300", bg: "bg-amber-500/20", border: "border-amber-500/30", icon: AlertCircle };
   }
 };
 
-const OrderDetailsModal = ({ order, onClose }) => {
+const isIdString = (str) => {
+  if (!str || typeof str !== "string") return false;
+  const trimmed = str.trim();
+  return trimmed.length >= 16 && !trimmed.includes(" ") && /^[A-Za-z0-9_-]+$/.test(trimmed);
+};
+
+const resolveDriverInfo = (order, partners = []) => {
+  if (!order) return { name: "", phone: "", vehicle: "", id: null };
+
+  const candidateIds = [];
+  const addId = (idVal) => {
+    if (idVal && typeof idVal === "string" && idVal.trim() !== "") {
+      const trimmed = idVal.trim();
+      if (!candidateIds.includes(trimmed)) candidateIds.push(trimmed);
+    }
+  };
+
+  addId(order.assigned_driver_id);
+  addId(order.assigned_delivery_boy_id);
+  addId(order.delivery_boy_id);
+  addId(order.driver_id);
+  addId(order.rider_id);
+  addId(order.delivery_partner_id);
+  addId(order.delivery_boy_uid);
+  addId(order.partner_id);
+  addId(order.delivered_by_id);
+
+  if (isIdString(order.delivered_by)) addId(order.delivered_by);
+  if (isIdString(order.delivery_boy_name)) addId(order.delivery_boy_name);
+  if (isIdString(order.driver_name)) addId(order.driver_name);
+  if (isIdString(order.delivery_partner)) addId(order.delivery_partner);
+
+  let candidateName = "";
+  const nameFields = [
+    order.delivery_boy_name,
+    order.driver_name,
+    order.rider_name,
+    order.delivery_partner_name,
+    order.deliveryBoyName,
+    order.deliveryPartner,
+    order.partner_name,
+    order.assigned_to,
+    order.delivery_person,
+    order.delivery_man,
+    typeof order.delivery_boy === "string" ? order.delivery_boy : order.delivery_boy?.name,
+    order.delivered_by_name,
+    order.delivered_by,
+  ];
+
+  for (const f of nameFields) {
+    if (f && typeof f === "string" && f.trim() !== "") {
+      const trimmed = f.trim();
+      if (!isIdString(trimmed) && trimmed !== "undefined" && trimmed !== "null") {
+        if (!candidateName) candidateName = trimmed;
+      }
+    }
+  }
+
+  let phone =
+    order.delivery_boy_phone ||
+    order.driver_phone ||
+    order.rider_phone ||
+    order.delivery_partner_phone ||
+    order.deliveryBoyPhone ||
+    order.delivery_boy?.phone ||
+    order.delivery_boy?.mobile_number ||
+    "";
+
+  let vehicle = order.delivery_boy_vehicle || order.vehicle_type || "";
+  let matchedPartner = null;
+
+  if (partners && partners.length > 0) {
+    for (const cid of candidateIds) {
+      const found = partners.find(p => String(p.id) === cid || String(p.uid) === cid);
+      if (found) {
+        matchedPartner = found;
+        break;
+      }
+    }
+
+    if (!matchedPartner) {
+      for (const f of nameFields) {
+        if (f && typeof f === "string") {
+          const trimmed = f.trim();
+          const found = partners.find(p => String(p.id) === trimmed || String(p.uid) === trimmed);
+          if (found) {
+            matchedPartner = found;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!matchedPartner && candidateName) {
+      matchedPartner = partners.find(p =>
+        p.name && p.name.toLowerCase().trim() === candidateName.toLowerCase().trim()
+      );
+    }
+
+    if (!matchedPartner && phone) {
+      matchedPartner = partners.find(p =>
+        (p.mobile_number && p.mobile_number === phone) || (p.phone && p.phone === phone)
+      );
+    }
+  }
+
+  let finalName = matchedPartner ? matchedPartner.name : candidateName;
+  let finalPhone = phone || (matchedPartner ? (matchedPartner.mobile_number || matchedPartner.phone || "") : "");
+  let finalVehicle = vehicle || (matchedPartner ? (matchedPartner.vehicle_type || "Bike") : "Bike");
+  let finalId = matchedPartner ? matchedPartner.id : (candidateIds[0] || null);
+
+  if (isIdString(finalName)) {
+    const directMatch = partners?.find(p => String(p.id) === finalName || String(p.uid) === finalName);
+    if (directMatch) {
+      finalName = directMatch.name;
+      finalPhone = directMatch.mobile_number || directMatch.phone || "";
+      finalVehicle = directMatch.vehicle_type || finalVehicle;
+      finalId = directMatch.id;
+    } else {
+      finalName = "Delivery Partner";
+    }
+  }
+
+  return {
+    name: (finalName || "").trim(),
+    phone: (finalPhone || "").trim(),
+    vehicle: finalVehicle || "Bike",
+    id: finalId,
+  };
+};
+
+const OrderDetailsModal = ({ order, onClose, partners = [] }) => {
   if (!order) return null;
 
   const items = order.items || [];
-  const statusInfo = statusConfig(order.order_status);
+  const statusInfo = statusConfig(order);
+  const driverInfo = resolveDriverInfo(order, partners);
 
   return (
     <motion.div
@@ -222,11 +394,11 @@ const OrderDetailsModal = ({ order, onClose }) => {
             <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 p-4 rounded-xl flex items-center justify-between">
               <div>
                 <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-wider flex items-center gap-2 mb-1">
-                  <Truck size={14} /> Assigned Delivery Partner
+                  <Truck size={14} /> {statusInfo.code === 4 ? "Delivered By" : "Assigned Delivery Partner"}
                 </h3>
-                {order.delivery_boy_name ? (
+                {driverInfo.name ? (
                   <p className="text-white text-sm font-semibold">
-                    {order.delivery_boy_name} {order.delivery_boy_phone ? `(${order.delivery_boy_phone})` : ""}
+                    {driverInfo.name} {driverInfo.phone ? `(${driverInfo.phone})` : ""}
                   </p>
                 ) : (
                   <p className="text-amber-300 text-xs">Unassigned</p>
@@ -307,6 +479,7 @@ export default function Orders() {
   const isSuperAdmin = Number(userObj.role_id) === 1;
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [orders, setOrders] = useState([]);
+  const [partners, setPartners] = useState([]);
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isReadyModalOpen, setIsReadyModalOpen] = useState(false);
@@ -382,8 +555,19 @@ export default function Orders() {
     }
   };
 
+  const loadPartners = async () => {
+    try {
+      const snap = await getDocs(collection(db, "delivery_partners"));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setPartners(list);
+    } catch (e) {
+      console.log("Failed to load delivery partners:", e);
+    }
+  };
+
   useEffect(() => {
     loadOrders();
+    loadPartners();
   }, []);
 
   useEffect(() => {
@@ -626,8 +810,9 @@ export default function Orders() {
             ) : (
               currentOrders.map((order, index) => {
                 const items = order.items || [];
-                const statusInfo = statusConfig(order.order_status);
+                const statusInfo = statusConfig(order);
                 const StatusIcon = statusInfo.icon;
+                const driverInfo = resolveDriverInfo(order, partners);
 
                 // Calcs
                 const totalQty = items.reduce((sum, item) => sum + safeNumber(item.quantity), 0);
@@ -773,6 +958,34 @@ export default function Orders() {
                         </div>
                       )}
 
+                      {/* Prominent Delivered by / Delivery Partner row */}
+                      {(order.order_type === "delivery" || order.delivery_address) && (
+                        <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {statusInfo.code === 4 ? (
+                              <CheckCircle size={14} className="text-emerald-400 shrink-0" />
+                            ) : (
+                              <Bike size={14} className={driverInfo.name ? "text-emerald-400 shrink-0" : "text-amber-400 shrink-0"} />
+                            )}
+                            <span className="text-white/60">
+                              {statusInfo.code === 4 ? "Delivered by:" : "Delivery Partner:"}
+                            </span>
+                            {driverInfo.name ? (
+                              <span className="font-bold text-emerald-300 truncate">
+                                {driverInfo.name} {driverInfo.phone && `(${driverInfo.phone})`}
+                              </span>
+                            ) : (
+                              <span className="text-amber-300 font-medium">Unassigned</span>
+                            )}
+                          </div>
+                          {order.delivery_status && (
+                            <span className="text-[10px] font-bold uppercase text-emerald-400 shrink-0">
+                              {order.delivery_status.replace(/_/g, " ")}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       {order.allergy_note && (
                         <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 p-2 rounded-lg flex items-start gap-2">
                           <AlertCircle size={14} className="shrink-0 mt-0.5" />
@@ -884,7 +1097,7 @@ export default function Orders() {
         {/* DETAILS MODAL */}
         <AnimatePresence>
           {selectedOrder && (
-            <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+            <OrderDetailsModal order={selectedOrder} partners={partners} onClose={() => setSelectedOrder(null)} />
           )}
         </AnimatePresence>
       </div>
