@@ -17,6 +17,8 @@ import PrivacyPolicy from "./pages/privacy-policy/index.jsx";
 import DeleteAccount from "./pages/delete-account/index.jsx";
 import DeliveryOrders from "./pages/deliveryorders/index.jsx";
 import DeliveryPartners from "./pages/deliverypartners/index.jsx";
+import AppQrCode from "./pages/app-qr-code/index.jsx";
+import AppLanding from "./pages/app-landing/index.jsx";
 import { PopupProvider } from "./context/PopupContext";
 
 function PrivateRoute({ children }) {
@@ -32,6 +34,8 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/delete-account" element={<DeleteAccount />} />
+          <Route path="/app" element={<AppLanding />} />
+          <Route path="/download-app" element={<AppLanding />} />
 
           <Route
             path="/dashboard"
@@ -179,6 +183,16 @@ export default function App() {
             }
           />
 
+          <Route
+            path="/app-qr-code"
+            element={
+              <PrivateRoute>
+                <RequirePerm perm="app_qr_code">
+                  <AppQrCode />
+                </RequirePerm>
+              </PrivateRoute>
+            }
+          />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

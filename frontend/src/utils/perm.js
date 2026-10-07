@@ -55,6 +55,9 @@ export function can(required) {
   // Exact match
   if (perms.includes(req)) return true;
 
+  // If user has settings permission, automatically allow app_qr_code
+  if (req === "app_qr_code" && perms.includes("settings")) return true;
+
   return false;
 }
 
@@ -75,6 +78,7 @@ export function getFirstAllowedRoute() {
     { perm: "restaurant", path: "/restuarent" },
     { perm: "settings", path: "/settings" },
     { perm: "access", path: "/access" },
+    { perm: "app_qr_code", path: "/app-qr-code" },
   ];
 
   for (const r of routes) {

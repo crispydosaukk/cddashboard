@@ -92,6 +92,7 @@ export default function Sidebar({ open, onClose }) {
       { label: "Customer Info", to: "/customerinfo", icon: iconCustomer(), perm: "customer_info" },
       { label: "Customer Details", to: "/customerdetails", icon: iconCustomerDetails(), perm: "customer_details" },
       { label: "Settings", to: "/settings", icon: iconSettings(), perm: "settings" },
+      { label: "App QR Generator", to: "/app-qr-code", icon: iconQrCode(), perm: "app_qr_code" },
       { label: "Order Management", to: "/orders", icon: iconOrders(), perm: "order_management" },
       { label: "Delivery Orders", to: "/delivery-orders", icon: iconTruck(), perm: "delivery_orders" },
       { label: "Delivery Partners", to: "/delivery-partners", icon: iconBike(), perm: "delivery_partners" },
@@ -426,6 +427,20 @@ function iconBike() {
       <circle cx="5.5" cy="17.5" r="3.5" />
       <circle cx="18.5" cy="17.5" r="3.5" />
       <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h4" />
+    </svg>
+  );
+}
+
+function iconQrCode() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="w-full h-full" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <path d="M14 14h3v3h-3z" />
+      <path d="M20 14v3h-3" />
+      <path d="M14 20h3v-3" />
+      <path d="M20 20v.01" />
     </svg>
   );
 }
