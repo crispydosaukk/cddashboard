@@ -31,6 +31,7 @@ export function isSuperAdmin(user = getUser()) {
   const email = String(user.email || "").toLowerCase();
 
   return (
+    roleId === "1" ||
     roleId === "6" ||
     roleTitle.includes("super") ||
     email === "rahulbadugu22@gmail.com" ||

@@ -16,7 +16,8 @@ import ReadyInModal from "../common/ReadyInModal.jsx";
 import DateTimeRangeModal from "../common/DateTimeRangeModal.jsx";
 
 import { db } from "../../firebase.js";
-import { collection, query, where, getDocs, addDoc, writeBatch } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, writeBatch, doc, getDoc } from "firebase/firestore";
+import { isSuperAdmin, getUser } from "../../utils/perm.js";
 import { motion, AnimatePresence } from "framer-motion";
 
 // --- Helper for Valid Images (Firebase only, no VPS) ---
@@ -25,6 +26,39 @@ const getValidImageUrl = (img) => {
   if (img.includes("api.crispydosa.info")) return null;
   if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("/")) return img;
   return null;
+};
+
+// --- Status Resolution & Safe Formatting Helpers ---
+const resolveOrderStatus = (order) => {
+  if (!order) return 0;
+  let raw = order.order_status !== undefined && order.order_status !== null ? order.order_status : order.status;
+  if (raw !== undefined && raw !== null && raw !== "" && !isNaN(Number(raw))) {
+    return Number(raw);
+  }
+  if (typeof raw === "string") {
+    const s = raw.toLowerCase().trim();
+    if (s === "placed" || s === "pending" || s === "new") return 0;
+    if (s === "accepted" || s === "confirmed" || s === "processing") return 1;
+    if (s === "rejected") return 2;
+    if (s === "ready" || s === "food_ready" || s === "prepared") return 3;
+    if (s === "delivered" || s === "collected" || s === "completed") return 4;
+    if (s === "cancelled" || s === "canceled") return 5;
+  }
+  return 0;
+};
+
+const formatDateSafe = (dateVal) => {
+  if (!dateVal) return "-";
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString();
+};
+
+const formatTimeSafe = (dateVal) => {
+  if (!dateVal) return "";
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
 // --- Components ---
@@ -207,67 +241,80 @@ const MetricDetailsModal = ({ isOpen, onClose, title, items = [], type, onUpdate
                             )}
                           </div>
                           <span className="block text-[10px] font-medium text-white/40 mt-1">
-                            {new Date(item.created_at).toLocaleDateString()} at {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {formatDateSafe(item.created_at)} at {formatTimeSafe(item.created_at)}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-white/70 text-sm font-medium">{item.customer_name || 'Guest'}</td>
-                        <td className="px-6 py-4 text-emerald-400 font-black text-sm">£{Number(item.grand_total).toFixed(2)}</td>
+                        <td className="px-6 py-4 text-emerald-400 font-black text-sm">£{Number(item.grand_total || 0).toFixed(2)}</td>
                         <td className="px-6 py-4 text-center">
-                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${Number(item.order_status) === 4 ? "bg-emerald-500/20 text-emerald-400" :
-                            Number(item.order_status) === 0 ? "bg-blue-500/20 text-blue-400" :
-                              Number(item.order_status) === 2 ? "bg-red-500/20 text-red-400" :
-                                "bg-amber-500/20 text-amber-400"
-                            }`}>
-                            {Number(item.order_status) === 0 ? 'Placed' :
-                              Number(item.order_status) === 1 ? 'Accepted' :
-                                Number(item.order_status) === 2 ? 'Rejected' :
-                                  Number(item.order_status) === 3 ? 'Ready' :
-                                    Number(item.order_status) === 4 ? 'Collected' : 'Cancelled'}
-                          </span>
+                          {(() => {
+                            const status = resolveOrderStatus(item);
+                            return (
+                              <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                                status === 4 ? "bg-emerald-500/20 text-emerald-400" :
+                                status === 0 ? "bg-blue-500/20 text-blue-400" :
+                                status === 1 ? "bg-indigo-500/20 text-indigo-400" :
+                                status === 2 ? "bg-rose-500/20 text-rose-400" :
+                                status === 3 ? "bg-amber-500/20 text-amber-400" :
+                                "bg-gray-500/20 text-gray-400"
+                              }`}>
+                                {status === 0 ? 'Placed' :
+                                  status === 1 ? 'Accepted' :
+                                  status === 2 ? 'Rejected' :
+                                  status === 3 ? 'Ready' :
+                                  status === 4 ? 'Collected' : 'Cancelled'}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <div className="flex justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            {Number(item.order_status) === 0 && (
-                              <>
-                                <button
-                                  onClick={() => onReadyClick(item.order_number)}
-                                  className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400 rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500/20"
-                                  title="Accept"
-                                >
-                                  <CheckCircle size={14} />
-                                  <span className="text-[10px] font-black uppercase tracking-wider">Accept</span>
-                                </button>
-                                <button
-                                  onClick={() => onUpdateStatus(item.order_number, 2)}
-                                  className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/40 text-rose-400 rounded-lg transition-all flex items-center gap-1.5 border border-rose-500/20"
-                                  title="Reject"
-                                >
-                                  <XCircle size={14} />
-                                  <span className="text-[10px] font-black uppercase tracking-wider">Reject</span>
-                                </button>
-                              </>
-                            )}
-                            {Number(item.order_status) === 1 && (
-                              <button
-                                onClick={() => onUpdateStatus(item.order_number, 3)}
-                                className="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/40 text-purple-400 rounded-lg transition-all flex items-center gap-1.5 border border-purple-500/20"
-                                title="Mark as Ready"
-                              >
-                                <ShoppingBag size={14} />
-                                <span className="text-[10px] font-black uppercase tracking-wider">Ready</span>
-                              </button>
-                            )}
-                            {Number(item.order_status) === 3 && (
-                              <button
-                                onClick={() => onUpdateStatus(item.order_number, 4)}
-                                className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400 rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500/20"
-                                title="Mark Collected"
-                              >
-                                <CheckCircle size={14} />
-                                <span className="text-[10px] font-black uppercase tracking-wider">Collected</span>
-                              </button>
-                            )}
-                          </div>
+                          {(() => {
+                            const status = resolveOrderStatus(item);
+                            return (
+                              <div className="flex justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                {status === 0 && (
+                                  <>
+                                    <button
+                                      onClick={() => onReadyClick(item.order_number)}
+                                      className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400 rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500/20"
+                                      title="Accept"
+                                    >
+                                      <CheckCircle size={14} />
+                                      <span className="text-[10px] font-black uppercase tracking-wider">Accept</span>
+                                    </button>
+                                    <button
+                                      onClick={() => onUpdateStatus(item.order_number, 2)}
+                                      className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/40 text-rose-400 rounded-lg transition-all flex items-center gap-1.5 border border-rose-500/20"
+                                      title="Reject"
+                                    >
+                                      <XCircle size={14} />
+                                      <span className="text-[10px] font-black uppercase tracking-wider">Reject</span>
+                                    </button>
+                                  </>
+                                )}
+                                {status === 1 && (
+                                  <button
+                                    onClick={() => onUpdateStatus(item.order_number, 3)}
+                                    className="px-3 py-1.5 bg-purple-500/20 hover:bg-purple-500/40 text-purple-400 rounded-lg transition-all flex items-center gap-1.5 border border-purple-500/20"
+                                    title="Mark as Ready"
+                                  >
+                                    <ShoppingBag size={14} />
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Ready</span>
+                                  </button>
+                                )}
+                                {status === 3 && (
+                                  <button
+                                    onClick={() => onUpdateStatus(item.order_number, 4)}
+                                    className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400 rounded-lg transition-all flex items-center gap-1.5 border border-emerald-500/20"
+                                    title="Mark Collected"
+                                  >
+                                    <CheckCircle size={14} />
+                                    <span className="text-[10px] font-black uppercase tracking-wider">Collected</span>
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                       </>
                     )}
@@ -391,20 +438,28 @@ const OrderDetailsModal = ({ order, onClose, onUpdateStatus, onReadyClick }) => 
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-white/60 text-sm">Status</span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${Number(order.order_status) === 4 ? "bg-emerald-500/20 text-emerald-400" :
-                    Number(order.order_status) === 0 ? "bg-blue-500/20 text-blue-400" :
-                      Number(order.order_status) === 2 ? "bg-red-500/20 text-red-400" :
-                        "bg-amber-500/20 text-amber-400"
-                    }`}>
-                    {Number(order.order_status) === 0 ? 'Placed' :
-                      Number(order.order_status) === 1 ? 'Accepted' :
-                        Number(order.order_status) === 2 ? 'Rejected' :
-                          Number(order.order_status) === 3 ? 'Ready' :
-                            Number(order.order_status) === 4 ? 'Collected' : 'Cancelled'}
-                  </span>
+                  {(() => {
+                    const status = resolveOrderStatus(order);
+                    return (
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        status === 4 ? "bg-emerald-500/20 text-emerald-400" :
+                        status === 0 ? "bg-blue-500/20 text-blue-400" :
+                        status === 1 ? "bg-indigo-500/20 text-indigo-400" :
+                        status === 2 ? "bg-red-500/20 text-red-400" :
+                        status === 3 ? "bg-amber-500/20 text-amber-400" :
+                        "bg-gray-500/20 text-gray-400"
+                      }`}>
+                        {status === 0 ? 'Placed' :
+                          status === 1 ? 'Accepted' :
+                          status === 2 ? 'Rejected' :
+                          status === 3 ? 'Ready' :
+                          status === 4 ? 'Collected' : 'Cancelled'}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="text-xs text-white/40 mt-2">
-                  Placed on {new Date(order.created_at).toLocaleString()}
+                  Placed on {formatDateSafe(order.created_at)} {formatTimeSafe(order.created_at)}
                 </div>
               </div>
             </div>
@@ -534,38 +589,45 @@ const OrderDetailsModal = ({ order, onClose, onUpdateStatus, onReadyClick }) => 
 
         <div className="bg-white/5 p-4 border-t border-white/10 flex justify-between items-center shrink-0">
           <div className="flex gap-2">
-            {Number(order.order_status) === 0 && (
-              <>
-                <button
-                  onClick={() => onReadyClick(order.order_number)}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-bold text-sm flex items-center gap-2 shadow-lg shadow-emerald-900/30"
-                >
-                  <CheckCircle size={16} /> Accept
-                </button>
-                <button
-                  onClick={() => onUpdateStatus(order.order_number, 2)}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors font-bold text-sm flex items-center gap-2 shadow-lg shadow-rose-900/30"
-                >
-                  <XCircle size={16} /> Reject
-                </button>
-              </>
-            )}
-            {Number(order.order_status) === 1 && (
-              <button
-                onClick={() => onUpdateStatus(order.order_number, 3)}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors font-bold text-sm flex items-center gap-2"
-              >
-                <ShoppingBag size={16} /> Mark as Ready
-              </button>
-            )}
-            {Number(order.order_status) === 3 && (
-              <button
-                onClick={() => onUpdateStatus(order.order_number, 4)}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-bold text-sm flex items-center gap-2"
-              >
-                <CheckCircle size={16} /> Mark Collected
-              </button>
-            )}
+            {(() => {
+              const status = resolveOrderStatus(order);
+              return (
+                <>
+                  {status === 0 && (
+                    <>
+                      <button
+                        onClick={() => onReadyClick(order.order_number)}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-bold text-sm flex items-center gap-2 shadow-lg shadow-emerald-900/30"
+                      >
+                        <CheckCircle size={16} /> Accept
+                      </button>
+                      <button
+                        onClick={() => onUpdateStatus(order.order_number, 2)}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors font-bold text-sm flex items-center gap-2 shadow-lg shadow-rose-900/30"
+                      >
+                        <XCircle size={16} /> Reject
+                      </button>
+                    </>
+                  )}
+                  {status === 1 && (
+                    <button
+                      onClick={() => onUpdateStatus(order.order_number, 3)}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors font-bold text-sm flex items-center gap-2"
+                    >
+                      <ShoppingBag size={16} /> Mark as Ready
+                    </button>
+                  )}
+                  {status === 3 && (
+                    <button
+                      onClick={() => onUpdateStatus(order.order_number, 4)}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-bold text-sm flex items-center gap-2"
+                    >
+                      <CheckCircle size={16} /> Mark Collected
+                    </button>
+                  )}
+                </>
+              );
+            })()}
           </div>
           <button onClick={onClose} className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors font-medium">
             Close
@@ -1381,6 +1443,10 @@ const NewOrderModal = ({ isOpen, onClose, onOrderPlaced, initialUserId, restaura
 
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const currentUser = getUser();
+  const superAdmin = isSuperAdmin(currentUser);
+  const userRestId = (!superAdmin && currentUser?.id) ? String(currentUser.id) : "";
+
   const [stats, setStats] = useState({
     total_bookings: 0,
     total_revenue: 0,
@@ -1391,11 +1457,13 @@ export default function Dashboard() {
     weekly_orders: [],
     top_selling_products: [],
     recent_orders: [],
+    range_orders: [],
     restaurant_name: "",
-    is_super_admin: false,
+    is_super_admin: superAdmin,
     pending_orders: 0,
     complaint_requests: 0,
     cancelled_orders: 0,
+    rejected_orders: 0,
     yet_to_receive_payments: 0,
     deactive_products: 0,
     total_products: 0,
@@ -1412,9 +1480,12 @@ export default function Dashboard() {
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
   const [isDateTimeFilterModalOpen, setIsDateTimeFilterModalOpen] = useState(false);
 
+  // View mode for orders table: "range" (orders for selected date range) or "all" (all recent orders)
+  const [orderViewMode, setOrderViewMode] = useState("range");
+
   // Restaurant Filter State (Super Admin)
   const [restaurants, setRestaurants] = useState([]);
-  const [selectedRestaurant, setSelectedRestaurant] = useState(""); // "" means All
+  const [selectedRestaurant, setSelectedRestaurant] = useState(userRestId); // default to userRestId if not superAdmin, else ""
   const [showRestaurantMenu, setShowRestaurantMenu] = useState(false);
 
   // Date Range State
@@ -1438,10 +1509,17 @@ export default function Dashboard() {
       try {
         const snap = await getDocs(collection(db, "restaurant"));
         if (!snap.empty) {
-           setRestaurants(snap.docs.map(docSnap => ({
+           const list = snap.docs.map(docSnap => ({
               user_id: docSnap.id, 
-              restaurant_name: docSnap.data().name || docSnap.data().restaurant_name || "Restaurant"
-           })));
+              restaurant_name: docSnap.data().restaurant_name || docSnap.data().name || "Restaurant"
+           }));
+           setRestaurants(list);
+           if (!superAdmin && currentUser?.id) {
+             const myRest = list.find(r => String(r.user_id) === String(currentUser.id));
+             if (myRest) {
+               setStats(prev => ({ ...prev, restaurant_name: myRest.restaurant_name }));
+             }
+           }
         }
       } catch (err) {
         console.error("Failed to fetch restaurants:", err);
@@ -1454,17 +1532,29 @@ export default function Dashboard() {
     try {
       setLoading(true);
 
+      const user = getUser();
+      const isSuper = isSuperAdmin(user);
+      const targetRestaurantId = isSuper ? selectedRestaurant : String(user?.id || "");
+
       const startDateStr = dateRange.start;
       const endDateStr = dateRange.end;
       
-      let ordersQuery = collection(db, "orders");
-      if (selectedRestaurant && selectedRestaurant !== "all") {
-        ordersQuery = query(collection(db, "orders"), where("user_id", "==", selectedRestaurant));
+      let ordersQuery;
+      let productsQuery;
+
+      if (targetRestaurantId && targetRestaurantId !== "all") {
+        const numId = Number(targetRestaurantId);
+        const idList = !isNaN(numId) ? [numId, String(targetRestaurantId)] : [String(targetRestaurantId)];
+        ordersQuery = query(collection(db, "orders"), where("user_id", "in", idList));
+        productsQuery = query(collection(db, "products"), where("user_id", "in", idList));
+      } else {
+        ordersQuery = collection(db, "orders");
+        productsQuery = collection(db, "products");
       }
       
       const [ordersSnap, productsSnap] = await Promise.all([
          getDocs(ordersQuery),
-         getDocs(collection(db, "products"))
+         getDocs(productsQuery)
       ]);
       
       const rawOrders = ordersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -1472,25 +1562,42 @@ export default function Dashboard() {
 
       const grouped = {};
       for (const o of rawOrders) {
-         if (!grouped[o.order_number]) {
-           grouped[o.order_number] = {
+         const orderNum = o.order_number || o.id;
+         const orderDate = o.created_at?.toDate ? o.created_at.toDate().toISOString() : o.created_at;
+         const orderStatus = resolveOrderStatus(o);
+         const grandTotal = Number(o.grand_total || 0);
+
+         if (!grouped[orderNum]) {
+           grouped[orderNum] = {
              ...o,
-             grand_total: 0,
-             created_at: o.created_at?.toDate ? o.created_at.toDate().toISOString() : o.created_at
+             order_number: orderNum,
+             grand_total: grandTotal,
+             order_status: orderStatus,
+             created_at: orderDate
            };
+         } else {
+           if (!grouped[orderNum].items || !Array.isArray(grouped[orderNum].items) || grouped[orderNum].items.length === 0) {
+             grouped[orderNum].grand_total += Number(o.price || 0) * Number(o.quantity || 1);
+           }
+           if (orderStatus > grouped[orderNum].order_status) {
+             grouped[orderNum].order_status = orderStatus;
+           }
          }
-         grouped[o.order_number].grand_total += Number(o.grand_total || 0);
-         grouped[o.order_number].order_status = Math.max(grouped[o.order_number].order_status, Number(o.order_status));
       }
       
-      const allUniqueOrders = Object.values(grouped).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+      const allUniqueOrders = Object.values(grouped).sort((a,b) => {
+        const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return db - da;
+      });
+
       const rangeOrders = allUniqueOrders.filter(o => {
         if (!o.created_at) return false;
         const d = new Date(o.created_at).toISOString().split('T')[0];
         return d >= startDateStr && d <= endDateStr;
       });
 
-      const daily_revenue = rangeOrders.filter(o => Number(o.order_status) === 4).reduce((sum, o) => sum + o.grand_total, 0);
+      const daily_revenue = rangeOrders.filter(o => Number(o.order_status) === 4).reduce((sum, o) => sum + Number(o.grand_total || 0), 0);
       const today_users = rangeOrders.length;
       const total_bookings = allUniqueOrders.length;
       
@@ -1499,9 +1606,110 @@ export default function Dashboard() {
       
       const pending_orders = rangeOrders.filter(o => [0, 1, 3].includes(Number(o.order_status))).length;
       const completed_orders = rangeOrders.filter(o => Number(o.order_status) === 4).length;
-      const cancelled_orders = rangeOrders.filter(o => [2, 5].includes(Number(o.order_status))).length;
+      const cancelled_orders = rangeOrders.filter(o => Number(o.order_status) === 5).length;
+      const rejected_orders = rangeOrders.filter(o => Number(o.order_status) === 2).length;
       
-      const yet_to_receive_payments = rangeOrders.filter(o => Number(o.payment_mode) === 0 && Number(o.order_status) < 4).reduce((sum, o) => sum + o.grand_total, 0);
+      const yet_to_receive_payments = rangeOrders.filter(o => Number(o.payment_mode) === 0 && Number(o.order_status) < 4).reduce((sum, o) => sum + Number(o.grand_total || 0), 0);
+
+      // Customer count (unique customers who ordered)
+      const customerIds = new Set();
+      allUniqueOrders.forEach(o => {
+        const cid = o.customer_id || o.mobile_number || o.customer_phone || o.customer_name;
+        if (cid) customerIds.add(String(cid));
+      });
+      const followers = customerIds.size;
+
+      // Determine restaurant name
+      let resolvedRestName = "All Restaurants";
+      if (targetRestaurantId && targetRestaurantId !== "all") {
+        const found = restaurants.find(r => String(r.user_id) === String(targetRestaurantId));
+        if (found) {
+          resolvedRestName = found.restaurant_name;
+        } else {
+          try {
+            const restDoc = await getDoc(doc(db, "restaurant", String(targetRestaurantId)));
+            if (restDoc.exists()) {
+              resolvedRestName = restDoc.data().restaurant_name || restDoc.data().name || user?.name || "Restaurant";
+            } else {
+              resolvedRestName = user?.name || "Restaurant";
+            }
+          } catch {
+            resolvedRestName = user?.name || "Restaurant";
+          }
+        }
+      }
+
+      // Chart: Sales comparison (Current vs Previous period)
+      const daySalesMap = {};
+      rangeOrders.forEach(o => {
+        if (!o.created_at) return;
+        const d = new Date(o.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' });
+        daySalesMap[d] = (daySalesMap[d] || 0) + Number(o.grand_total || 0);
+      });
+      const sales_comparison = Object.keys(daySalesMap).map(label => ({
+        label,
+        current: Number(daySalesMap[label].toFixed(2)),
+        previous: 0
+      }));
+
+      // Chart: Average order cost over time
+      const dayCountMap = {};
+      rangeOrders.forEach(o => {
+        if (!o.created_at) return;
+        const d = new Date(o.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' });
+        dayCountMap[d] = (dayCountMap[d] || 0) + 1;
+      });
+      const avg_order_cost = Object.keys(daySalesMap).map(label => ({
+        label,
+        avg: Number((daySalesMap[label] / (dayCountMap[label] || 1)).toFixed(2))
+      }));
+
+      // Chart: Weekly orders
+      const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const weeklyCounts = { Sun: 0, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0 };
+      rangeOrders.forEach(o => {
+        if (!o.created_at) return;
+        const dayName = daysOfWeek[new Date(o.created_at).getDay()];
+        if (dayName) weeklyCounts[dayName] = (weeklyCounts[dayName] || 0) + 1;
+      });
+      const weekly_orders = daysOfWeek.map(day => ({
+        day,
+        orders: weeklyCounts[day]
+      }));
+
+      // Chart: Top selling products
+      const prodSalesMap = {};
+      allUniqueOrders.forEach(o => {
+        if (Array.isArray(o.items)) {
+          o.items.forEach(it => {
+            const name = it.product_name || it.name || "Item";
+            if (!prodSalesMap[name]) {
+              prodSalesMap[name] = { name, orders_count: 0, total_revenue: 0, image: it.image || it.product_image || "" };
+            }
+            prodSalesMap[name].orders_count += Number(it.quantity || 1);
+            prodSalesMap[name].total_revenue += Number(it.price || 0) * Number(it.quantity || 1);
+          });
+        }
+      });
+      const top_selling_products = Object.values(prodSalesMap)
+        .sort((a,b) => b.total_revenue - a.total_revenue)
+        .slice(0, 5);
+
+      // Super Admin: Restaurant performance
+      let restaurant_performance = [];
+      if (isSuper && (!targetRestaurantId || targetRestaurantId === "all")) {
+        const restPerfMap = {};
+        allUniqueOrders.forEach(o => {
+          const rId = String(o.user_id || "unknown");
+          const rName = restaurants.find(r => String(r.user_id) === rId)?.restaurant_name || o.restaurant_name || `Restaurant #${rId}`;
+          if (!restPerfMap[rId]) {
+            restPerfMap[rId] = { restaurant_name: rName, order_count: 0, revenue: 0 };
+          }
+          restPerfMap[rId].order_count += 1;
+          restPerfMap[rId].revenue += Number(o.grand_total || 0);
+        });
+        restaurant_performance = Object.values(restPerfMap).sort((a,b) => b.revenue - a.revenue);
+      }
 
       setStats({
         daily_revenue,
@@ -1514,11 +1722,19 @@ export default function Dashboard() {
         pending_orders,
         completed_orders,
         cancelled_orders,
+        rejected_orders,
         orders: rangeOrders.length,
         yet_to_receive_payments,
-        recent_orders: allUniqueOrders.slice(0, 10),
-        is_super_admin: true,
-        restaurant_name: selectedRestaurant ? (restaurants.find(r => r.user_id === selectedRestaurant)?.restaurant_name || "Restaurant") : "All Restaurants"
+        recent_orders: allUniqueOrders, // Full list for pagination
+        range_orders: rangeOrders,       // Date range filtered
+        is_super_admin: isSuper,
+        restaurant_name: resolvedRestName,
+        followers,
+        sales_comparison,
+        avg_order_cost,
+        weekly_orders,
+        top_selling_products,
+        restaurant_performance
       });
     } catch (error) {
       console.error("Stats fetch failed", error);
@@ -1541,22 +1757,26 @@ export default function Dashboard() {
       }
 
       snapshot.docs.forEach(docSnap => {
-        const updateData = { order_status: status };
+        const updateData = { order_status: status, status: status };
         if (estTime) updateData.delivery_estimate_time = estTime;
+        if (status === 4) {
+          updateData.delivery_status = "delivered";
+          updateData.delivered_at = new Date().toISOString();
+        }
         batch.update(docSnap.ref, updateData);
       });
       await batch.commit();
-      fetchStats();
+      await fetchStats();
       // Also update modal items if open
       if (detailModal.isOpen) {
         setDetailModal(prev => ({
           ...prev,
-          items: prev.items.map(o => o.order_number === orderNumber ? { ...o, order_status: status } : o)
+          items: prev.items.map(o => o.order_number === orderNumber ? { ...o, order_status: status, status: status } : o)
         }));
       }
       // If selectedOrder (OrderDetailsModal) is open, update it too
       if (selectedOrder && selectedOrder.order_number === orderNumber) {
-        setSelectedOrder(prev => ({ ...prev, order_status: status }));
+        setSelectedOrder(prev => ({ ...prev, order_status: status, status: status }));
       }
     } catch (error) {
       console.error("Failed to update status", error);
@@ -1566,38 +1786,55 @@ export default function Dashboard() {
   const openDetailModal = async (type, title) => {
     let items = [];
     const includeDates = (type !== 'total_bookings' && type !== 'products' && type !== 'deactive' && type !== 'stock');
-
-    let filterParams = `?restaurantId=${selectedRestaurant}`;
-    if (includeDates) {
-      filterParams += `&startDate=${dateRange.start}&endDate=${dateRange.end}`;
-    }
+    const user = getUser();
+    const isSuper = isSuperAdmin(user);
+    const targetRestaurantId = isSuper ? selectedRestaurant : String(user?.id || "");
 
     if (type === 'pending' || type === 'completed' || type === 'cancelled' || type === 'rejected' || type === 'orders' || type === 'total_bookings' || type === 'payments') {
       try {
-        let q = collection(db, "orders");
-        if (selectedRestaurant !== "all" && selectedRestaurant) {
-          q = query(collection(db, "orders"), where("user_id", "==", Number(selectedRestaurant)));
+        let q;
+        if (targetRestaurantId && targetRestaurantId !== "all") {
+          const numId = Number(targetRestaurantId);
+          const idList = !isNaN(numId) ? [numId, String(targetRestaurantId)] : [String(targetRestaurantId)];
+          q = query(collection(db, "orders"), where("user_id", "in", idList));
+        } else {
+          q = collection(db, "orders");
         }
         
         const snapshot = await getDocs(q);
         const rawOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        // Group by order_number since Firestore orders table matches MySQL (1 row per item)
+        // Group by order_number
         const grouped = {};
         for (const o of rawOrders) {
-           if (!grouped[o.order_number]) {
-             grouped[o.order_number] = {
+           const orderNum = o.order_number || o.id;
+           const orderDate = o.created_at?.toDate ? o.created_at.toDate().toISOString() : o.created_at;
+           const orderStatus = resolveOrderStatus(o);
+           const grandTotal = Number(o.grand_total || 0);
+
+           if (!grouped[orderNum]) {
+             grouped[orderNum] = {
                ...o,
-               grand_total: 0,
-               created_at: o.created_at?.toDate ? o.created_at.toDate().toISOString() : o.created_at
+               order_number: orderNum,
+               grand_total: grandTotal,
+               order_status: orderStatus,
+               created_at: orderDate
              };
+           } else {
+             if (!grouped[orderNum].items || !Array.isArray(grouped[orderNum].items) || grouped[orderNum].items.length === 0) {
+               grouped[orderNum].grand_total += Number(o.price || 0) * Number(o.quantity || 1);
+             }
+             if (orderStatus > grouped[orderNum].order_status) {
+               grouped[orderNum].order_status = orderStatus;
+             }
            }
-           // Avoid duplicating grand_total if it was calculated per item properly
-           grouped[o.order_number].grand_total += Number(o.grand_total || 0);
-           grouped[o.order_number].order_status = Math.max(grouped[o.order_number].order_status, Number(o.order_status));
         }
         
-        let allOrders = Object.values(grouped).sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        let allOrders = Object.values(grouped).sort((a,b) => {
+          const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return db - da;
+        });
 
         if (type === 'pending') {
           items = allOrders.filter(o => [0, 1, 3].includes(Number(o.order_status)));
@@ -1626,9 +1863,13 @@ export default function Dashboard() {
       } catch (err) { console.error(err); }
     } else if (type === 'products' || type === 'deactive' || type === 'stock') {
       try {
-        let q = collection(db, "products");
-        if (selectedRestaurant !== "all" && selectedRestaurant) {
-          q = query(collection(db, "products"), where("user_id", "==", Number(selectedRestaurant)));
+        let q;
+        if (targetRestaurantId && targetRestaurantId !== "all") {
+          const numId = Number(targetRestaurantId);
+          const idList = !isNaN(numId) ? [numId, String(targetRestaurantId)] : [String(targetRestaurantId)];
+          q = query(collection(db, "products"), where("user_id", "in", idList));
+        } else {
+          q = collection(db, "products");
         }
         const snapshot = await getDocs(q);
         const allProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -1644,7 +1885,16 @@ export default function Dashboard() {
     } else if (type === 'customers') {
       try {
         const snapshot = await getDocs(collection(db, "customers"));
-        items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        let allCustomers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        if (targetRestaurantId && targetRestaurantId !== "all") {
+          const numId = Number(targetRestaurantId);
+          const idList = !isNaN(numId) ? [numId, String(targetRestaurantId)] : [String(targetRestaurantId)];
+          const oSnap = await getDocs(query(collection(db, "orders"), where("user_id", "in", idList)));
+          const custIds = new Set(oSnap.docs.map(d => String(d.data().customer_id || "")).filter(Boolean));
+          const custPhones = new Set(oSnap.docs.map(d => String(d.data().mobile_number || d.data().customer_phone || "")).filter(Boolean));
+          allCustomers = allCustomers.filter(c => custIds.has(String(c.id)) || custPhones.has(String(c.mobile_number || c.phone || "")));
+        }
+        items = allCustomers;
       } catch (err) { console.error(err); }
     }
     setDetailModal({ isOpen: true, title, items, type });
@@ -1725,28 +1975,66 @@ export default function Dashboard() {
     return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(Number(amount) || 0);
   };
 
+  // Reset pagination when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [dateRange, selectedRestaurant, orderViewMode]);
+
   // derived stats
   const todayRevenueTotal = stats.daily_revenue || 0;
   const todayOrdersCount = stats.today_users || 0;
 
-  // Pagination Logic
+  // Derived orders based on view mode (range vs all)
+  const displayOrders = orderViewMode === "range" ? (stats.range_orders || []) : (stats.recent_orders || []);
   const indexOfLastOrder = currentPage * ordersPerPage;
   const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
-  const currentOrders = stats.recent_orders?.slice(indexOfFirstOrder, indexOfLastOrder) || [];
-  const totalPages = Math.ceil((stats.recent_orders?.length || 0) / ordersPerPage);
+  const currentOrders = displayOrders.slice(indexOfFirstOrder, indexOfLastOrder);
+  const totalPages = Math.max(1, Math.ceil(displayOrders.length / ordersPerPage));
 
-  const getStatusBadge = (status) => {
-    const s = Number(status);
+  // CSV Export for current view
+  const handleExport = () => {
+    const exportData = displayOrders.length > 0 ? displayOrders : (stats.recent_orders || []);
+    if (!exportData || exportData.length === 0) {
+      alert("No orders to export");
+      return;
+    }
+    const headers = ["Order No", "Customer", "Phone", "Amount (£)", "Status", "Date", "Source"];
+    const statusMap = { 0: "Placed", 1: "Accepted", 2: "Rejected", 3: "Ready", 4: "Collected", 5: "Cancelled" };
+    const rows = exportData.map(o => [
+      `"${o.order_number || o.id || ''}"`,
+      `"${(o.customer_name || 'Guest').replace(/"/g, '""')}"`,
+      `"${o.mobile_number || o.customer_phone || ''}"`,
+      `"${Number(o.grand_total || 0).toFixed(2)}"`,
+      `"${statusMap[resolveOrderStatus(o)] || 'Cancelled'}"`,
+      `"${formatDateSafe(o.created_at)} ${formatTimeSafe(o.created_at)}"`,
+      `"${o.order_source || 'Online'}"`
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    const fileNameSuffix = `${stats.restaurant_name || 'dashboard'}_${dateRange.start}_to_${dateRange.end}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+    link.setAttribute("download", `orders_${fileNameSuffix}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const getStatusBadge = (orderOrStatus) => {
+    const s = typeof orderOrStatus === 'object' && orderOrStatus !== null 
+      ? resolveOrderStatus(orderOrStatus) 
+      : (typeof orderOrStatus === 'number' ? orderOrStatus : resolveOrderStatus({ order_status: orderOrStatus }));
     if (s === 0) return <span className="px-2 py-1 rounded-full text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">Placed</span>;
     if (s === 1) return <span className="px-2 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Accepted</span>;
-    if (s === 2) return <span className="px-2 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30">Rejected</span>;
+    if (s === 2) return <span className="px-2 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">Rejected</span>;
     if (s === 3) return <span className="px-2 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">Ready</span>;
     if (s === 4) return <span className="px-2 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Collected</span>;
-    return <span className="px-2 py-1 rounded-full text-xs font-bold bg-gray-500/20 text-gray-300">Cancelled</span>;
+    return <span className="px-2 py-1 rounded-full text-xs font-bold bg-gray-500/20 text-gray-300 border border-gray-500/30">Cancelled</span>;
   };
 
   const OrderActions = ({ order }) => {
-    const status = Number(order.order_status);
+    const status = resolveOrderStatus(order);
     return (
       <div className="flex items-center justify-center gap-2">
         <button
@@ -1883,7 +2171,10 @@ export default function Dashboard() {
               >
                 <Calendar size={18} /> {dateRange.label} <ChevronDown size={14} />
               </button>
-              <button className="flex items-center gap-2 px-6 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 text-white font-bold hover:bg-white/20 transition-all text-sm uppercase tracking-wider whitespace-nowrap">
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-2 px-6 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 text-white font-bold hover:bg-white/20 transition-all text-sm uppercase tracking-wider whitespace-nowrap active:scale-95"
+              >
                 <ArrowRight className="rotate-90" size={18} /> Export
               </button>
               <button
@@ -2157,10 +2448,27 @@ export default function Dashboard() {
               transition={{ delay: 0.8, duration: 0.4 }}
               className="xl:col-span-2 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-xl overflow-hidden flex flex-col"
             >
-              <div className="px-6 py-5 border-b border-white/10 flex justify-between items-center bg-white/5">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <ShoppingBag size={20} className="text-emerald-400" /> Recent Orders
-                </h2>
+              <div className="px-6 py-5 border-b border-white/10 flex flex-wrap justify-between items-center gap-3 bg-white/5">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag size={20} className="text-emerald-400" />
+                  <h2 className="text-lg font-bold text-white">Recent Orders</h2>
+                </div>
+
+                {/* Range vs All Toggle */}
+                <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl border border-white/10 text-xs font-semibold">
+                  <button
+                    onClick={() => { setOrderViewMode("range"); setCurrentPage(1); }}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${orderViewMode === "range" ? "bg-emerald-600 text-white shadow-md" : "text-white/60 hover:text-white"}`}
+                  >
+                    {dateRange.label} ({stats.range_orders?.length || 0})
+                  </button>
+                  <button
+                    onClick={() => { setOrderViewMode("all"); setCurrentPage(1); }}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${orderViewMode === "all" ? "bg-emerald-600 text-white shadow-md" : "text-white/60 hover:text-white"}`}
+                  >
+                    All Recent ({stats.recent_orders?.length || 0})
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-x-auto flex-1">
@@ -2180,10 +2488,10 @@ export default function Dashboard() {
                       <tr><td colSpan="6" className="px-6 py-12 text-center text-white/40">Loading orders...</td></tr>
                     ) : currentOrders.length > 0 ? (
                       currentOrders.map((order, i) => (
-                        <tr key={i} className="hover:bg-white/5 transition-colors group">
+                        <tr key={order.order_number || order.id || i} className="hover:bg-white/5 transition-colors group">
                           <td className="px-6 py-4 font-medium">
                             <div className="flex items-center gap-2">
-                              #{order.order_number}
+                              <span className="font-bold text-white">#{order.order_number}</span>
                               {order.order_source === 'Dashboard' && (
                                 <div className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-500 text-white text-[9px] font-black border border-white/10 shadow-sm" title="Dashboard Order">
                                   D
@@ -2193,11 +2501,11 @@ export default function Dashboard() {
                           </td>
                           <td className="px-6 py-4 text-white/80">{order.customer_name || "Guest"}</td>
                           <td className="px-6 py-4 font-semibold text-emerald-300">{formatCurrency(order.grand_total)}</td>
-                          <td className="px-6 py-4">{getStatusBadge(order.order_status)}</td>
+                          <td className="px-6 py-4">{getStatusBadge(order)}</td>
                           <td className="px-6 py-4 text-white/60">
-                            {new Date(order.created_at).toLocaleDateString()}
+                            {formatDateSafe(order.created_at)}
                             <br />
-                            <span className="text-xs text-white/40">{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="text-xs text-white/40">{formatTimeSafe(order.created_at)}</span>
                           </td>
                           <td className="px-6 py-4 text-center">
                             <OrderActions order={order} />
@@ -2206,7 +2514,17 @@ export default function Dashboard() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="6" className="px-6 py-12 text-center text-white/40">No orders found for this date</td>
+                        <td colSpan="6" className="px-6 py-12 text-center text-white/40">
+                          <p className="mb-2">No orders found for {orderViewMode === "range" ? dateRange.label : "this view"}</p>
+                          {orderViewMode === "range" && (stats.recent_orders?.length || 0) > 0 && (
+                            <button
+                              onClick={() => { setOrderViewMode("all"); setCurrentPage(1); }}
+                              className="text-xs text-emerald-400 hover:underline inline-flex items-center gap-1 font-semibold"
+                            >
+                              View all recent orders ({stats.recent_orders.length}) →
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     )}
                   </tbody>
@@ -2214,10 +2532,10 @@ export default function Dashboard() {
               </div>
 
               {/* Pagination */}
-              {stats.recent_orders?.length > ordersPerPage && (
+              {displayOrders.length > ordersPerPage && (
                 <div className="px-6 py-4 border-t border-white/10 flex items-center justify-between bg-white/5">
                   <div className="text-sm text-white/60">
-                    Page {currentPage} of {totalPages}
+                    Page {currentPage} of {totalPages} <span className="text-white/40 text-xs">({displayOrders.length} total)</span>
                   </div>
                   <div className="flex gap-2">
                     <button
